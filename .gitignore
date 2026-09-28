@@ -1,0 +1,28 @@
+# Node
+node_modules/
+dist/
+coverage/
+
+# Angular
+.angular/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Customer drawings
+storage/drawings/*
+!storage/drawings/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
