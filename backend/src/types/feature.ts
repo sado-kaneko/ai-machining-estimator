@@ -41,6 +41,16 @@ export interface CreateFeatureInput {
   sourceText: string | null;
 }
 
+// DBレコード更新用入力型
+export interface UpdateFeatureInput {
+  featureType: string;
+  description: string | null;
+  diameter: number | null;
+  length: number | null;
+  depth: number | null;
+  needsReview: boolean;
+}
+
 // Feature単体DTO (camelCase)
 export interface FeatureDto {
   id: number;

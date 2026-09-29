@@ -119,12 +119,22 @@
                     <td>{{ (d.fileSize / 1024) | number: '1.0-1' }} KB</td>
                     <td>{{ d.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
                     <td>
-                      <button
-                        class="btn btn-danger btn-sm"
-                        (click)="deleteDrawing(d.id)"
-                      >
-                        削除
-                      </button>
+                      <div class="table-actions">
+                        <button
+                          class="btn btn-outline-primary btn-sm"
+                          (click)="runAnalysis(d.id)"
+                          [disabled]="isAnalyzing()"
+                        >
+                          {{ isAnalyzing() && selectedDrawingId() === d.id ? '解析中...' : 'AI解析' }}
+                        </button>
+                        <button
+                          class="btn btn-danger btn-sm"
+                          (click)="deleteDrawing(d.id)"
+                          [disabled]="isAnalyzing()"
+                        >
+                          削除
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 }
@@ -133,6 +143,214 @@
           </div>
         }
       </div>
+
+      <!-- AI解析結果・加工Feature管理セクション -->
+      <div class="detail-section">
+        <div class="section-header-flex">
+          <h2>AI解析結果・加工Feature確認</h2>
+          @if (activeAnalysis(); as analysis) {
+            <button
+              class="btn btn-secondary btn-sm"
+              (click)="generateFeatures(analysis.id)"
+              [disabled]="isGeneratingFeatures()"
+            >
+              {{ isGeneratingFeatures() ? '生成中...' : 'Feature再生成' }}
+            </button>
+          }
+        </div>
+
+        @if (featureSuccessMessage()) {
+          <div class="alert alert-success">
+            {{ featureSuccessMessage() }}
+          </div>
+        }
+
+        @if (featureErrorMessage()) {
+          <div class="alert alert-error">
+            {{ featureErrorMessage() }}
+          </div>
+        }
+
+        @if (isLoadingAnalysis()) {
+          <div class="loading">解析情報を読み込み中...</div>
+        } @else if (activeAnalysis(); as analysis) {
+          <!-- 基本解析情報表示エリア -->
+          <div class="analysis-summary-box">
+            <h3>基本解析情報</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="label">部品種類</span>
+                <span class="value font-bold">{{ analysis.partType || '-' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">材質</span>
+                <span class="value font-bold">{{ analysis.material || '-' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">素材外径 (mm)</span>
+                <span class="value">{{ analysis.stockDiameter !== null ? (analysis.stockDiameter + ' mm') : '-' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">完成全長 (mm)</span>
+                <span class="value">{{ analysis.overallLength !== null ? (analysis.overallLength + ' mm') : '-' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature一覧表示エリア -->
+          <div class="features-box">
+            <h3>加工Feature一覧 ({{ features().length }}件)</h3>
+            @if (isLoadingFeatures()) {
+              <div class="loading">Feature一覧を取得中...</div>
+            } @else if (features().length === 0) {
+              <p class="no-drawings">登録されている加工Featureはありません。「Feature再生成」ボタンから抽出を実行してください。</p>
+            } @else {
+              <div class="drawings-table-wrapper">
+                <table class="data-table feature-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">No</th>
+                      <th style="width: 90px;">種類</th>
+                      <th>説明 / 根拠</th>
+                      <th style="width: 80px;">径 (mm)</th>
+                      <th style="width: 80px;">長さ (mm)</th>
+                      <th style="width: 80px;">深さ (mm)</th>
+                      <th style="width: 100px;">状態</th>
+                      <th style="width: 80px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (f of features(); track f.id) {
+                      <tr [class.row-warning]="f.needsReview">
+                        <td class="text-center">{{ f.sequenceNo }}</td>
+                        <td>
+                          <span class="badge badge-type">{{ f.featureType }}</span>
+                        </td>
+                        <td>
+                          <div class="feature-desc">{{ f.description || '-' }}</div>
+                          @if (f.sourceText) {
+                            <div class="feature-source">AI根拠: {{ f.sourceText }}</div>
+                          }
+                        </td>
+                        <td class="text-right">{{ f.diameter !== null ? f.diameter : '-' }}</td>
+                        <td class="text-right">{{ f.length !== null ? f.length : '-' }}</td>
+                        <td class="text-right">{{ f.depth !== null ? f.depth : '-' }}</td>
+                        <td>
+                          @if (f.needsReview) {
+                            <span class="badge badge-review-needed">要確認</span>
+                          } @else {
+                            <span class="badge badge-confirmed">確認済み</span>
+                          }
+                        </td>
+                        <td>
+                          <button
+                            class="btn btn-secondary btn-sm"
+                            (click)="openEditModal(f)"
+                          >
+                            編集
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="no-analysis-box">
+            <p>図面のAI解析がまだ実行されていません。「AI解析」ボタンをクリックして図面解析を実行してください。</p>
+          </div>
+        }
+      </div>
+
+      <!-- Feature編集モーダル -->
+      @if (editingFeature(); as target) {
+        <div class="modal-backdrop">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>加工Feature編集 (No.{{ target.sequenceNo }})</h3>
+              <button class="modal-close" (click)="closeEditModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-group">
+                <label>Feature種類</label>
+                <select [(ngModel)]="editForm.featureType" class="form-control">
+                  <option value="OD">OD (外径加工)</option>
+                  <option value="ID">ID (内径加工)</option>
+                  <option value="DRILL">DRILL (ドリル穴あけ)</option>
+                  <option value="BORE">BORE (ボーリング仕上げ)</option>
+                  <option value="THREAD">THREAD (ねじ切り)</option>
+                  <option value="GROOVE">GROOVE (溝入れ)</option>
+                  <option value="CHAMFER">CHAMFER (面取り)</option>
+                  <option value="UNKNOWN">UNKNOWN (不明・その他)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>説明</label>
+                <input
+                  type="text"
+                  [(ngModel)]="editForm.description"
+                  class="form-control"
+                  placeholder="部位の説明"
+                />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>径 (mm)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="editForm.diameter"
+                    class="form-control"
+                    min="0"
+                    step="0.01"
+                    placeholder="例: 30"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>長さ (mm)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="editForm.length"
+                    class="form-control"
+                    min="0"
+                    step="0.01"
+                    placeholder="例: 50"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>深さ (mm)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="editForm.depth"
+                    class="form-control"
+                    min="0"
+                    step="0.01"
+                    placeholder="例: 20"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="editForm.needsReview"
+                  />
+                  <span>要確認（未確認状態にする）</span>
+                </label>
+                <span class="help-text">チェックを外すと「確認済み」として扱われます。</span>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" (click)="closeEditModal()">キャンセル</button>
+              <button class="btn btn-primary" (click)="saveFeature()">保存する</button>
+            </div>
+          </div>
+        </div>
+      }
 
       <div class="detail-section">
         <h2>登録・更新情報</h2>

@@ -55,6 +55,49 @@ export class DrawingAnalysisController {
       });
     }
   }
+
+  /**
+   * GET /api/drawings/:id/analysis
+   * 図面の最新解析結果を取得
+   */
+  async getLatestAnalysis(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const drawingId = parseInt(rawId, 10);
+
+      if (isNaN(drawingId) || drawingId <= 0) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_ID',
+            message: '有効な図面IDを指定してください。',
+          },
+        });
+        return;
+      }
+
+      const result = await drawingAnalysisService.getLatestAnalysisByDrawingId(drawingId);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : '';
+
+      if (errorMessage === 'DRAWING_NOT_FOUND') {
+        res.status(404).json({
+          error: {
+            code: 'DRAWING_NOT_FOUND',
+            message: '指定された図面が存在しません。',
+          },
+        });
+        return;
+      }
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '解析結果の取得に失敗しました。',
+        },
+      });
+    }
+  }
 }
 
 export const drawingAnalysisController = new DrawingAnalysisController();

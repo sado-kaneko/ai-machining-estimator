@@ -97,6 +97,59 @@ export class FeatureController {
       });
     }
   }
+
+  /**
+   * PUT /api/features/:id
+   * Feature の更新
+   */
+  async updateFeature(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const featureId = parseInt(rawId, 10);
+
+      if (isNaN(featureId) || featureId <= 0) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_ID',
+            message: '有効なFeature IDを指定してください。',
+          },
+        });
+        return;
+      }
+
+      const result = await featureService.updateFeature(featureId, req.body);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+
+      if (message === 'FEATURE_NOT_FOUND') {
+        res.status(404).json({
+          error: {
+            code: 'FEATURE_NOT_FOUND',
+            message: '指定された加工Featureが存在しません。',
+          },
+        });
+        return;
+      }
+
+      if (message === 'VALIDATION_ERROR') {
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '入力内容に不備があります。寸法値は0以上の数値を入力してください。',
+          },
+        });
+        return;
+      }
+
+      res.status(500).json({
+        error: {
+          code: 'FEATURE_UPDATE_FAILED',
+          message: '加工Featureの更新に失敗しました。',
+        },
+      });
+    }
+  }
 }
 
 export const featureController = new FeatureController();

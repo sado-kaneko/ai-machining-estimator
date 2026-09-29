@@ -33,4 +33,23 @@ export class DrawingService {
   deleteDrawing(drawingId: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/drawings/${drawingId}`);
   }
+
+  /**
+   * 図面AI解析実行 (POST /api/drawings/:id/analyze)
+   */
+  analyzeDrawing(drawingId: number): Observable<{ id: number; drawingId: number; status: string; createdAt: string }> {
+    return this.http.post<{ id: number; drawingId: number; status: string; createdAt: string }>(
+      `${this.baseUrl}/drawings/${drawingId}/analyze`,
+      {}
+    );
+  }
+
+  /**
+   * 図面の最新解析結果取得 (GET /api/drawings/:id/analysis)
+   */
+  getLatestAnalysis(drawingId: number): Observable<import('../models/feature.model').DrawingAnalysis | null> {
+    return this.http.get<import('../models/feature.model').DrawingAnalysis | null>(
+      `${this.baseUrl}/drawings/${drawingId}/analysis`
+    );
+  }
 }

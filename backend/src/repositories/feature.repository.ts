@@ -106,6 +106,51 @@ export class FeatureRepository {
   }
 
   /**
+   * ID で Feature 1件を取得
+   */
+  async findById(id: number): Promise<FeatureRow | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT * FROM features WHERE id = ?`,
+      [id]
+    );
+
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    return rows[0] as FeatureRow;
+  }
+
+  /**
+   * Feature レコードの更新
+   */
+  async update(id: number, data: import('../types/feature').UpdateFeatureInput): Promise<boolean> {
+    const [result] = await pool.query<ResultSetHeader>(
+      `UPDATE features
+       SET
+         feature_type = ?,
+         description = ?,
+         diameter = ?,
+         length = ?,
+         depth = ?,
+         needs_review = ?,
+         updated_at = NOW()
+       WHERE id = ?`,
+      [
+        data.featureType,
+        data.description,
+        data.diameter,
+        data.length,
+        data.depth,
+        data.needsReview ? 1 : 0,
+        id,
+      ]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  /**
    * 全件数を取得（テスト・検証用）
    */
   async count(): Promise<number> {

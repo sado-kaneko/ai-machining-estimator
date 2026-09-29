@@ -20,6 +20,11 @@ router.post('/drawings/:id/analyze', (req, res) => {
   drawingAnalysisController.analyzeDrawing(req, res);
 });
 
+// GET /api/drawings/:id/analysis (最新の解析結果取得)
+router.get('/drawings/:id/analysis', (req, res) => {
+  drawingAnalysisController.getLatestAnalysis(req, res);
+});
+
 // DELETE /api/drawings/:id (図面削除)
 router.delete('/drawings/:id', (req, res) => {
   drawingController.deleteDrawing(req, res);

@@ -53,3 +53,28 @@ export function toDrawingAnalysisDto(row: DrawingAnalysisRow): DrawingAnalysisDt
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   };
 }
+
+// 基本解析情報DTO（Frontend表示用）
+export interface DrawingAnalysisDetailDto {
+  id: number;
+  drawingId: number;
+  status: string;
+  partType: string | null;
+  material: string | null;
+  stockDiameter: number | null;
+  overallLength: number | null;
+  createdAt: string;
+}
+
+export function toDrawingAnalysisDetailDto(row: DrawingAnalysisRow): DrawingAnalysisDetailDto {
+  return {
+    id: Number(row.id),
+    drawingId: Number(row.drawing_id),
+    status: row.analysis_status,
+    partType: row.part_type,
+    material: row.material,
+    stockDiameter: row.stock_diameter !== null ? Number(row.stock_diameter) : null,
+    overallLength: row.overall_length !== null ? Number(row.overall_length) : null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+  };
+}

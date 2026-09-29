@@ -13,4 +13,9 @@ router.get('/drawing-analyses/:id/features', (req, res) => {
   featureController.getFeatures(req, res);
 });
 
+// PUT /api/features/:id (Feature更新)
+router.put('/features/:id', (req, res) => {
+  featureController.updateFeature(req, res);
+});
+
 export default router;

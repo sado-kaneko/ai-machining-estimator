@@ -6,7 +6,12 @@ import { PROMPT_VERSION, SYSTEM_PROMPT, USER_PROMPT } from '../prompts/drawing-a
 import { drawingAnalysisRepository } from '../repositories/drawing-analysis.repository';
 import { drawingRepository } from '../repositories/drawing.repository';
 import { DrawingAnalysisData, DrawingAnalysisSchema } from '../schemas/drawing-analysis.schema';
-import { DrawingAnalysisDto, toDrawingAnalysisDto } from '../types/drawing-analysis';
+import {
+  DrawingAnalysisDetailDto,
+  DrawingAnalysisDto,
+  toDrawingAnalysisDetailDto,
+  toDrawingAnalysisDto,
+} from '../types/drawing-analysis';
 
 export class DrawingAnalysisService {
   /**
@@ -118,6 +123,23 @@ export class DrawingAnalysisService {
     }
 
     return toDrawingAnalysisDto(createdRow);
+  }
+
+  /**
+   * 図面IDから最新の解析結果を取得
+   */
+  async getLatestAnalysisByDrawingId(drawingId: number): Promise<DrawingAnalysisDetailDto | null> {
+    const drawing = await drawingRepository.findById(drawingId);
+    if (!drawing) {
+      throw new Error('DRAWING_NOT_FOUND');
+    }
+
+    const row = await drawingAnalysisRepository.findLatestByDrawingId(drawingId);
+    if (!row) {
+      return null;
+    }
+
+    return toDrawingAnalysisDetailDto(row);
   }
 }
 

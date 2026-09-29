@@ -1,10 +1,12 @@
 import { drawingAnalysisRepository } from '../repositories/drawing-analysis.repository';
 import { featureRepository } from '../repositories/feature.repository';
-import { AiFeatureItem, RawResponseFeaturesSchema } from '../schemas/feature.schema';
+import { AiFeatureItem, RawResponseFeaturesSchema, UpdateFeatureSchema } from '../schemas/feature.schema';
 import {
   CreateFeatureInput,
+  FeatureDto,
   FeatureListResponseDto,
   GenerateFeaturesResponseDto,
+  UpdateFeatureInput,
   toFeatureDto,
 } from '../types/feature';
 
@@ -139,6 +141,48 @@ export class FeatureService {
     }
 
     return parts.length > 0 ? parts.join(' - ') : `${item.type}加工`;
+  }
+
+  /**
+   * Feature の更新
+   */
+  async updateFeature(id: number, data: unknown): Promise<FeatureDto> {
+    // 1. 更新対象の存在確認
+    const existing = await featureRepository.findById(id);
+    if (!existing) {
+      throw new Error('FEATURE_NOT_FOUND');
+    }
+
+    // 2. 入力値検証 (Zod)
+    const validationResult = UpdateFeatureSchema.safeParse(data);
+    if (!validationResult.success) {
+      const issues = validationResult.error.issues.map((i) => i.message).join(', ');
+      console.warn(`Validation failed for feature update: ${issues}`);
+      throw new Error('VALIDATION_ERROR');
+    }
+
+    const validData: UpdateFeatureInput = {
+      featureType: validationResult.data.featureType,
+      description: validationResult.data.description ?? null,
+      diameter: validationResult.data.diameter,
+      length: validationResult.data.length,
+      depth: validationResult.data.depth,
+      needsReview: validationResult.data.needsReview,
+    };
+
+    // 3. 更新実行
+    const success = await featureRepository.update(id, validData);
+    if (!success) {
+      throw new Error('FEATURE_UPDATE_FAILED');
+    }
+
+    // 4. 更新後の最新データを取得して返却
+    const updated = await featureRepository.findById(id);
+    if (!updated) {
+      throw new Error('FEATURE_NOT_FOUND');
+    }
+
+    return toFeatureDto(updated);
   }
 }
 
