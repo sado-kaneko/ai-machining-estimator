@@ -250,3 +250,34 @@
   }
   .help-text { font-size: 0.75rem; color: #718096; margin-left: 1.25rem; }
 }
+
+/* サイクルタイム表示用スタイル */
+.ct-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.ct-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  &-label { font-size: 0.8rem; font-weight: 500; color: #718096; }
+  &-value { font-size: 1.25rem; font-weight: 600; color: #2d3748; }
+  &-sub { font-size: 0.75rem; color: #718096; }
+  .font-highlight { color: #2b6cb0; font-size: 1.4rem; }
+}
+
+.ct-table {
+  font-size: 0.825rem;
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+  .text-muted { color: #a0aec0; }
+  th small { font-weight: normal; color: #718096; }
+}

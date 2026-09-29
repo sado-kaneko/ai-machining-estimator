@@ -6,10 +6,12 @@ import { QuoteService } from '../../services/quote.service';
 import { DrawingService } from '../../services/drawing.service';
 import { FeatureService } from '../../services/feature.service';
 import { OperationService } from '../../services/operation.service';
+import { CycleTimeService } from '../../services/cycle-time.service';
 import { Quote } from '../../models/quote.model';
 import { Drawing } from '../../models/drawing.model';
 import { DrawingAnalysis, Feature, UpdateFeatureRequest } from '../../models/feature.model';
 import { Operation, UpdateOperationRequest } from '../../models/operation.model';
+import { CycleTimeResult } from '../../models/cycle-time.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -25,6 +27,7 @@ export class QuoteDetailComponent implements OnInit {
   private readonly drawingService = inject(DrawingService);
   private readonly featureService = inject(FeatureService);
   private readonly operationService = inject(OperationService);
+  private readonly cycleTimeService = inject(CycleTimeService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
@@ -35,8 +38,15 @@ export class QuoteDetailComponent implements OnInit {
   drawingErrorMessage = signal<string | null>(null);
   selectedFile = signal<File | null>(null);
 
-  // タブ切り替え ('features' | 'operations')
-  activeTab = signal<'features' | 'operations'>('features');
+  // タブ切り替え ('features' | 'operations' | 'cycle-time')
+  activeTab = signal<'features' | 'operations' | 'cycle-time'>('features');
+
+  // サイクルタイム計算関連シグナル
+  cycleTimeResult = signal<CycleTimeResult | null>(null);
+  isCalculatingCycleTime = signal<boolean>(false);
+  isLoadingCycleTime = signal<boolean>(false);
+  cycleTimeErrorMessage = signal<string | null>(null);
+  cycleTimeSuccessMessage = signal<string | null>(null);
 
   // AI解析・Feature関連シグナル
   selectedDrawingId = signal<number | null>(null);
@@ -88,6 +98,7 @@ export class QuoteDetailComponent implements OnInit {
     this.loadQuote(id);
     this.loadDrawings(id);
     this.loadOperations(id);
+    this.loadCycleTime(id);
   }
 
   loadQuote(id: number): void {
@@ -438,6 +449,47 @@ export class QuoteDetailComponent implements OnInit {
             this.loadOperations(q.id);
           },
         });
+      },
+    });
+  }
+
+  loadCycleTime(quoteId: number): void {
+    this.isLoadingCycleTime.set(true);
+    this.cycleTimeErrorMessage.set(null);
+
+    this.cycleTimeService.getCycleTime(quoteId).subscribe({
+      next: (res) => {
+        this.cycleTimeResult.set(res);
+        this.isLoadingCycleTime.set(false);
+      },
+      error: () => {
+        // 未計算の場合は 404 となるため、エラーメッセージは表示せず null を維持
+        this.cycleTimeResult.set(null);
+        this.isLoadingCycleTime.set(false);
+      },
+    });
+  }
+
+  handleCalculateCycleTime(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    this.isCalculatingCycleTime.set(true);
+    this.cycleTimeErrorMessage.set(null);
+    this.cycleTimeSuccessMessage.set(null);
+
+    this.cycleTimeService.calculateCycleTime(q.id).subscribe({
+      next: (res) => {
+        this.cycleTimeResult.set(res);
+        this.isCalculatingCycleTime.set(false);
+        this.cycleTimeSuccessMessage.set('サイクルタイムを計算・保存しました。');
+        // 各工程の切削時間フィールドも更新されているため再取得
+        this.loadOperations(q.id);
+      },
+      error: (err) => {
+        this.isCalculatingCycleTime.set(false);
+        const msg = err?.error?.error?.message || 'サイクルタイム計算に失敗しました。';
+        this.cycleTimeErrorMessage.set(msg);
       },
     });
   }

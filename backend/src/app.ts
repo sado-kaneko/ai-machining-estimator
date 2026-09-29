@@ -7,6 +7,7 @@ import quoteRoutes from './routes/quote.routes';
 import drawingRoutes from './routes/drawing.routes';
 import featureRoutes from './routes/feature.routes';
 import operationRoutes from './routes/operation.routes';
+import cycleTimeRoutes from './routes/cycle-time.routes';
 
 const app = express();
 
@@ -29,5 +30,8 @@ app.use('/api', featureRoutes);
 
 // 加工工程ルーターのマウント (/api/quotes/:id/operations, /api/operations/:id)
 app.use('/api', operationRoutes);
+
+// サイクルタイム計算ルーターのマウント (/api/quotes/:id/cycle-time)
+app.use('/api', cycleTimeRoutes);
 
 export default app;

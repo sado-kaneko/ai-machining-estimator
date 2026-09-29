@@ -163,6 +163,13 @@
             >
               加工工程候補 ({{ operations().length }})
             </button>
+            <button
+              class="tab-btn"
+              [class.active]="activeTab() === 'cycle-time'"
+              (click)="activeTab.set('cycle-time')"
+            >
+              サイクルタイム
+            </button>
           </div>
         </div>
 
@@ -363,6 +370,105 @@
                       }
                     </tbody>
                   </table>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- サイクルタイムタブ表示エリア -->
+          @if (activeTab() === 'cycle-time') {
+            <div class="cycle-time-box">
+              <div class="section-header-flex">
+                <h3>概算サイクルタイム計算</h3>
+                <button
+                  class="btn btn-primary btn-sm"
+                  (click)="handleCalculateCycleTime()"
+                  [disabled]="isCalculatingCycleTime() || operations().length === 0"
+                >
+                  {{ isCalculatingCycleTime() ? '計算中...' : 'サイクルタイム計算' }}
+                </button>
+              </div>
+
+              @if (cycleTimeSuccessMessage()) {
+                <div class="alert alert-success">
+                  {{ cycleTimeSuccessMessage() }}
+                </div>
+              }
+
+              @if (cycleTimeErrorMessage()) {
+                <div class="alert alert-error">
+                  {{ cycleTimeErrorMessage() }}
+                </div>
+              }
+
+              @if (isLoadingCycleTime()) {
+                <div class="loading">サイクルタイム計算結果を取得中...</div>
+              } @else if (cycleTimeResult(); as ct) {
+                <!-- 集計サマリーカード表示 -->
+                <div class="ct-summary-cards">
+                  <div class="ct-card">
+                    <span class="ct-card-label">1個あたり総時間</span>
+                    <span class="ct-card-value font-highlight">{{ ct.totalCycleTimeSec }} 秒</span>
+                    <span class="ct-card-sub">({{ (ct.totalCycleTimeSec / 60).toFixed(2) }} 分)</span>
+                  </div>
+                  <div class="ct-card">
+                    <span class="ct-card-label">ロット総加工時間 ({{ ct.quantity }}個)</span>
+                    <span class="ct-card-value font-highlight">{{ ct.totalLotTimeSec }} 秒</span>
+                    <span class="ct-card-sub">({{ (ct.totalLotTimeSec / 60).toFixed(1) }} 分 / {{ (ct.totalLotTimeSec / 3600).toFixed(2) }} 時間)</span>
+                  </div>
+                  <div class="ct-card">
+                    <span class="ct-card-label">切削時間 (1個)</span>
+                    <span class="ct-card-value">{{ ct.cuttingTimeSec }} 秒</span>
+                    <span class="ct-card-sub">割合: {{ ((ct.cuttingTimeSec / ct.totalCycleTimeSec) * 100).toFixed(1) }}%</span>
+                  </div>
+                  <div class="ct-card">
+                    <span class="ct-card-label">非切削時間 (1個)</span>
+                    <span class="ct-card-value">{{ ct.nonCuttingTimeSec }} 秒</span>
+                    <span class="ct-card-sub">割合: {{ ((ct.nonCuttingTimeSec / ct.totalCycleTimeSec) * 100).toFixed(1) }}%</span>
+                  </div>
+                </div>
+
+                <!-- 工程別内訳テーブル -->
+                <div class="ct-table-box" style="margin-top: 1.5rem;">
+                  <h4>工程別加工時間内訳 ({{ ct.operations.length }}工程)</h4>
+                  <div class="drawings-table-wrapper">
+                    <table class="data-table ct-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 50px;">順序</th>
+                          <th style="width: 90px;">工程</th>
+                          <th>説明</th>
+                          <th style="width: 80px;" class="text-right">切削速度<br><small>(m/min)</small></th>
+                          <th style="width: 80px;" class="text-right">送り量<br><small>(mm/rev)</small></th>
+                          <th style="width: 80px;" class="text-right">回転数<br><small>(rpm)</small></th>
+                          <th style="width: 90px;" class="text-right">切削時間</th>
+                          <th style="width: 90px;" class="text-right">非切削時間</th>
+                          <th style="width: 90px;" class="text-right">工程合計</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (op of ct.operations; track op.operationId) {
+                          <tr>
+                            <td class="text-center">{{ op.sequenceNo }}</td>
+                            <td>
+                              <span class="badge badge-type">{{ op.operationType }}</span>
+                            </td>
+                            <td>{{ op.description }}</td>
+                            <td class="text-right">{{ op.vc }}</td>
+                            <td class="text-right">{{ op.feedPerRev }}</td>
+                            <td class="text-right">{{ op.rpm }}</td>
+                            <td class="text-right">{{ op.cuttingTimeSec }} 秒</td>
+                            <td class="text-right text-muted">{{ op.nonCuttingTimeSec }} 秒</td>
+                            <td class="text-right font-bold">{{ op.totalTimeSec }} 秒</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              } @else {
+                <div class="no-drawings">
+                  <p>サイクルタイムがまだ計算されていません。「サイクルタイム計算」ボタンをクリックして算出を実行してください。</p>
                 </div>
               }
             </div>
