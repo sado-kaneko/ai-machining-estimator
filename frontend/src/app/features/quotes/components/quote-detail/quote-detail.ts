@@ -7,11 +7,13 @@ import { DrawingService } from '../../services/drawing.service';
 import { FeatureService } from '../../services/feature.service';
 import { OperationService } from '../../services/operation.service';
 import { CycleTimeService } from '../../services/cycle-time.service';
+import { LatheService } from '../../services/lathe.service';
 import { Quote } from '../../models/quote.model';
 import { Drawing } from '../../models/drawing.model';
 import { DrawingAnalysis, Feature, UpdateFeatureRequest } from '../../models/feature.model';
 import { Operation, UpdateOperationRequest } from '../../models/operation.model';
 import { CycleTimeResult } from '../../models/cycle-time.model';
+import { AutomaticLatheOperation, LatheCycleTimeSummary } from '../../models/lathe.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -28,6 +30,7 @@ export class QuoteDetailComponent implements OnInit {
   private readonly featureService = inject(FeatureService);
   private readonly operationService = inject(OperationService);
   private readonly cycleTimeService = inject(CycleTimeService);
+  private readonly latheService = inject(LatheService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
@@ -38,8 +41,17 @@ export class QuoteDetailComponent implements OnInit {
   drawingErrorMessage = signal<string | null>(null);
   selectedFile = signal<File | null>(null);
 
-  // タブ切り替え ('features' | 'operations' | 'cycle-time')
-  activeTab = signal<'features' | 'operations' | 'cycle-time'>('features');
+  // タブ切り替え ('features' | 'operations' | 'cycle-time' | 'lathe')
+  activeTab = signal<'features' | 'operations' | 'cycle-time' | 'lathe'>('features');
+
+  // NC自動旋盤エンジン関連シグナル (PHASE08)
+  latheOperations = signal<AutomaticLatheOperation[]>([]);
+  latheCycleTime = signal<LatheCycleTimeSummary | null>(null);
+  isLoadingLatheOps = signal<boolean>(false);
+  isGeneratingLatheOps = signal<boolean>(false);
+  isCalculatingLatheCt = signal<boolean>(false);
+  latheErrorMessage = signal<string | null>(null);
+  latheSuccessMessage = signal<string | null>(null);
 
   // サイクルタイム計算関連シグナル
   cycleTimeResult = signal<CycleTimeResult | null>(null);
@@ -99,6 +111,8 @@ export class QuoteDetailComponent implements OnInit {
     this.loadDrawings(id);
     this.loadOperations(id);
     this.loadCycleTime(id);
+    this.loadLatheOperations(id);
+    this.loadLatheCycleTime(id);
   }
 
   loadQuote(id: number): void {
@@ -490,6 +504,85 @@ export class QuoteDetailComponent implements OnInit {
         this.isCalculatingCycleTime.set(false);
         const msg = err?.error?.error?.message || 'サイクルタイム計算に失敗しました。';
         this.cycleTimeErrorMessage.set(msg);
+      },
+    });
+  }
+
+  // =================== PHASE08 NC自動旋盤エンジン ===================
+
+  loadLatheOperations(quoteId: number): void {
+    this.isLoadingLatheOps.set(true);
+    this.latheService.getLatheOperations(quoteId).subscribe({
+      next: (res) => {
+        this.latheOperations.set(res.items);
+        this.isLoadingLatheOps.set(false);
+      },
+      error: () => {
+        this.latheOperations.set([]);
+        this.isLoadingLatheOps.set(false);
+      },
+    });
+  }
+
+  loadLatheCycleTime(quoteId: number): void {
+    this.latheService.getLatheCycleTime(quoteId).subscribe({
+      next: (res) => {
+        this.latheCycleTime.set(res);
+      },
+      error: () => {
+        this.latheCycleTime.set(null);
+      },
+    });
+  }
+
+  handleGenerateLatheOperations(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    if (this.latheOperations().length > 0) {
+      if (!confirm('既にNC自動旋盤工程が存在します。再生成して上書きしてもよろしいですか？')) {
+        return;
+      }
+    }
+
+    this.isGeneratingLatheOps.set(true);
+    this.latheErrorMessage.set(null);
+    this.latheSuccessMessage.set(null);
+
+    this.latheService.generateLatheOperations(q.id, true).subscribe({
+      next: (res) => {
+        this.isGeneratingLatheOps.set(false);
+        this.latheSuccessMessage.set(`NC自動旋盤工程（${res.operationCount}工程）を生成しました。`);
+        this.loadLatheOperations(q.id);
+        this.loadLatheCycleTime(q.id);
+      },
+      error: (err) => {
+        this.isGeneratingLatheOps.set(false);
+        const msg = err?.error?.error?.message || '自動旋盤工程の生成に失敗しました。';
+        this.latheErrorMessage.set(msg);
+      },
+    });
+  }
+
+  handleCalculateLatheCycleTime(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    this.isCalculatingLatheCt.set(true);
+    this.latheErrorMessage.set(null);
+    this.latheSuccessMessage.set(null);
+
+    this.latheService.calculateLatheCycleTime(q.id).subscribe({
+      next: (res) => {
+        this.latheCycleTime.set(res);
+        this.isCalculatingLatheCt.set(false);
+        this.latheSuccessMessage.set('NC自動旋盤サイクルタイムの計算が完了しました。');
+        this.loadLatheOperations(q.id);
+      },
+      error: (err) => {
+        this.isCalculatingLatheCt.set(false);
+        const msg = err?.error?.error?.message || '自動旋盤サイクルタイムの計算に失敗しました。';
+        this.latheErrorMessage.set(msg);
       },
     });
   }

@@ -168,7 +168,14 @@
               [class.active]="activeTab() === 'cycle-time'"
               (click)="activeTab.set('cycle-time')"
             >
-              サイクルタイム
+              汎用旋盤計算
+            </button>
+            <button
+              class="tab-btn"
+              [class.active]="activeTab() === 'lathe'"
+              (click)="activeTab.set('lathe')"
+            >
+              自動旋盤計算 ({{ latheOperations().length }})
             </button>
           </div>
         </div>
@@ -469,6 +476,126 @@
               } @else {
                 <div class="no-drawings">
                   <p>サイクルタイムがまだ計算されていません。「サイクルタイム計算」ボタンをクリックして算出を実行してください。</p>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- NC自動旋盤エンジンタブ表示エリア (PHASE08) -->
+          @if (activeTab() === 'lathe') {
+            <div class="lathe-box">
+              <div class="section-header-flex">
+                <div>
+                  <h3>NC自動旋盤 見積計算エンジン</h3>
+                  <p class="section-subtext">対象設備: Citizen Cincom L20 (ガイドブッシュ式自動盤)</p>
+                </div>
+                <div class="header-actions" style="display: flex; gap: 0.5rem;">
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    (click)="handleGenerateLatheOperations()"
+                    [disabled]="isGeneratingLatheOps()"
+                  >
+                    {{ isGeneratingLatheOps() ? '工程生成中...' : '自動旋盤工程生成' }}
+                  </button>
+                  <button
+                    class="btn btn-primary btn-sm"
+                    (click)="handleCalculateLatheCycleTime()"
+                    [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
+                  >
+                    {{ isCalculatingLatheCt() ? '計算実行中...' : '自動旋盤サイクルタイム計算' }}
+                  </button>
+                </div>
+              </div>
+
+              @if (latheSuccessMessage()) {
+                <div class="alert alert-success">
+                  {{ latheSuccessMessage() }}
+                </div>
+              }
+
+              @if (latheErrorMessage()) {
+                <div class="alert alert-error">
+                  {{ latheErrorMessage() }}
+                </div>
+              }
+
+              @if (isLoadingLatheOps()) {
+                <div class="loading">自動旋盤工程一覧を読み込み中...</div>
+              } @else if (latheOperations().length === 0) {
+                <div class="no-drawings">
+                  <p>NC自動旋盤用の加工工程がまだ生成されていません。「自動旋盤工程生成」ボタンをクリックして候補工程を生成してください。</p>
+                </div>
+              } @else {
+                <!-- 計算結果サマリー表示 (計算済みの時) -->
+                @if (latheCycleTime(); as ct) {
+                  <div class="ct-summary-cards" style="margin-bottom: 1.5rem;">
+                    <div class="ct-card">
+                      <span class="ct-card-label">1個あたり総時間 (Cincom L20)</span>
+                      <span class="ct-card-value font-highlight">{{ ct.totalCycleTimeSec }} 秒</span>
+                      <span class="ct-card-sub">({{ (ct.totalCycleTimeSec / 60).toFixed(2) }} 分)</span>
+                    </div>
+                    <div class="ct-card">
+                      <span class="ct-card-label">ロット総加工時間 ({{ ct.quantity }}個)</span>
+                      <span class="ct-card-value font-highlight">{{ ct.totalLotTimeSec }} 秒</span>
+                      <span class="ct-card-sub">({{ (ct.totalLotTimeSec / 60).toFixed(1) }} 分 / {{ (ct.totalLotTimeSec / 3600).toFixed(2) }} 時間)</span>
+                    </div>
+                    <div class="ct-card">
+                      <span class="ct-card-label">切削時間 (1個)</span>
+                      <span class="ct-card-value">{{ ct.cuttingTimeSec }} 秒</span>
+                      <span class="ct-card-sub">割合: {{ ((ct.cuttingTimeSec / ct.totalCycleTimeSec) * 100).toFixed(1) }}%</span>
+                    </div>
+                    <div class="ct-card">
+                      <span class="ct-card-label">非切削時間 (1個)</span>
+                      <span class="ct-card-value">{{ ct.nonCuttingTimeSec }} 秒</span>
+                      <span class="ct-card-sub">工具交換・材料送り・回収等</span>
+                    </div>
+                  </div>
+                }
+
+                <!-- 自動旋盤工程テーブル -->
+                <div class="drawings-table-wrapper">
+                  <table class="data-table lathe-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 50px;">順序</th>
+                        <th style="width: 100px;">加工種類</th>
+                        <th style="width: 80px;" class="text-right">加工径<br><small>(mm)</small></th>
+                        <th style="width: 80px;" class="text-right">加工長<br><small>(mm)</small></th>
+                        <th style="width: 80px;" class="text-right">切削速度<br><small>(m/min)</small></th>
+                        <th style="width: 80px;" class="text-right">送り量<br><small>(mm/rev)</small></th>
+                        <th style="width: 80px;" class="text-right">回転数<br><small>(rpm)</small></th>
+                        <th style="width: 80px;" class="text-right">切削時間</th>
+                        <th style="width: 80px;" class="text-right">非切削時間</th>
+                        <th style="width: 90px;" class="text-right">工程合計</th>
+                        <th style="width: 80px;">状態</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (op of latheOperations(); track op.id) {
+                        <tr>
+                          <td class="text-center font-bold">{{ op.sequenceNo }}</td>
+                          <td>
+                            <span class="badge badge-type">{{ op.processName }}</span>
+                          </td>
+                          <td class="text-right">{{ op.diameter }}</td>
+                          <td class="text-right">{{ op.machiningLength }}</td>
+                          <td class="text-right">{{ op.vc > 0 ? op.vc : '-' }}</td>
+                          <td class="text-right">{{ op.feed > 0 ? op.feed : '-' }}</td>
+                          <td class="text-right">{{ op.rpm > 0 ? op.rpm : '-' }}</td>
+                          <td class="text-right">{{ op.cuttingTimeSec > 0 ? (op.cuttingTimeSec + ' 秒') : '-' }}</td>
+                          <td class="text-right text-muted">{{ op.nonCuttingTimeSec > 0 ? (op.nonCuttingTimeSec + ' 秒') : '-' }}</td>
+                          <td class="text-right font-bold">{{ op.totalTimeSec > 0 ? (op.totalTimeSec + ' 秒') : '-' }}</td>
+                          <td>
+                            @if (op.status === 'CONFIRMED') {
+                              <span class="badge badge-confirmed">確認済</span>
+                            } @else {
+                              <span class="badge badge-review-needed">生成済</span>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
                 </div>
               }
             </div>

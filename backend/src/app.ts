@@ -8,6 +8,7 @@ import drawingRoutes from './routes/drawing.routes';
 import featureRoutes from './routes/feature.routes';
 import operationRoutes from './routes/operation.routes';
 import cycleTimeRoutes from './routes/cycle-time.routes';
+import latheRoutes from './routes/lathe.routes';
 
 const app = express();
 
@@ -33,5 +34,8 @@ app.use('/api', operationRoutes);
 
 // サイクルタイム計算ルーターのマウント (/api/quotes/:id/cycle-time)
 app.use('/api', cycleTimeRoutes);
+
+// NC自動旋盤エンジンルーターのマウント (/api/quotes/:id/lathe-operations, /api/quotes/:id/lathe-cycle-time)
+app.use('/api', latheRoutes);
 
 export default app;

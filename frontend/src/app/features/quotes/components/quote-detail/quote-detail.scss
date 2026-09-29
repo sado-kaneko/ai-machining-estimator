@@ -274,10 +274,16 @@
   .font-highlight { color: #2b6cb0; font-size: 1.4rem; }
 }
 
-.ct-table {
+.ct-table, .lathe-table {
   font-size: 0.825rem;
   .text-right { text-align: right; }
   .text-center { text-align: center; }
   .text-muted { color: #a0aec0; }
   th small { font-weight: normal; color: #718096; }
+}
+
+.section-subtext {
+  font-size: 0.8rem;
+  color: #718096;
+  margin: 0.25rem 0 0 0;
 }
