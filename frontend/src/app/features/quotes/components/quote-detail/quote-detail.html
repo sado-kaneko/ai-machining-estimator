@@ -147,16 +147,23 @@
       <!-- AI解析結果・加工Feature管理セクション -->
       <div class="detail-section">
         <div class="section-header-flex">
-          <h2>AI解析結果・加工Feature確認</h2>
-          @if (activeAnalysis(); as analysis) {
+          <h2>AI解析・加工工程設計</h2>
+          <div class="tab-controls">
             <button
-              class="btn btn-secondary btn-sm"
-              (click)="generateFeatures(analysis.id)"
-              [disabled]="isGeneratingFeatures()"
+              class="tab-btn"
+              [class.active]="activeTab() === 'features'"
+              (click)="activeTab.set('features')"
             >
-              {{ isGeneratingFeatures() ? '生成中...' : 'Feature再生成' }}
+              加工Feature ({{ features().length }})
             </button>
-          }
+            <button
+              class="tab-btn"
+              [class.active]="activeTab() === 'operations'"
+              (click)="activeTab.set('operations')"
+            >
+              加工工程候補 ({{ operations().length }})
+            </button>
+          </div>
         </div>
 
         @if (featureSuccessMessage()) {
@@ -176,7 +183,6 @@
         } @else if (activeAnalysis(); as analysis) {
           <!-- 基本解析情報表示エリア -->
           <div class="analysis-summary-box">
-            <h3>基本解析情報</h3>
             <div class="detail-grid">
               <div class="detail-item">
                 <span class="label">部品種類</span>
@@ -197,66 +203,170 @@
             </div>
           </div>
 
-          <!-- Feature一覧表示エリア -->
-          <div class="features-box">
-            <h3>加工Feature一覧 ({{ features().length }}件)</h3>
-            @if (isLoadingFeatures()) {
-              <div class="loading">Feature一覧を取得中...</div>
-            } @else if (features().length === 0) {
-              <p class="no-drawings">登録されている加工Featureはありません。「Feature再生成」ボタンから抽出を実行してください。</p>
-            } @else {
-              <div class="drawings-table-wrapper">
-                <table class="data-table feature-table">
-                  <thead>
-                    <tr>
-                      <th style="width: 50px;">No</th>
-                      <th style="width: 90px;">種類</th>
-                      <th>説明 / 根拠</th>
-                      <th style="width: 80px;">径 (mm)</th>
-                      <th style="width: 80px;">長さ (mm)</th>
-                      <th style="width: 80px;">深さ (mm)</th>
-                      <th style="width: 100px;">状態</th>
-                      <th style="width: 80px;">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (f of features(); track f.id) {
-                      <tr [class.row-warning]="f.needsReview">
-                        <td class="text-center">{{ f.sequenceNo }}</td>
-                        <td>
-                          <span class="badge badge-type">{{ f.featureType }}</span>
-                        </td>
-                        <td>
-                          <div class="feature-desc">{{ f.description || '-' }}</div>
-                          @if (f.sourceText) {
-                            <div class="feature-source">AI根拠: {{ f.sourceText }}</div>
-                          }
-                        </td>
-                        <td class="text-right">{{ f.diameter !== null ? f.diameter : '-' }}</td>
-                        <td class="text-right">{{ f.length !== null ? f.length : '-' }}</td>
-                        <td class="text-right">{{ f.depth !== null ? f.depth : '-' }}</td>
-                        <td>
-                          @if (f.needsReview) {
-                            <span class="badge badge-review-needed">要確認</span>
-                          } @else {
-                            <span class="badge badge-confirmed">確認済み</span>
-                          }
-                        </td>
-                        <td>
-                          <button
-                            class="btn btn-secondary btn-sm"
-                            (click)="openEditModal(f)"
-                          >
-                            編集
-                          </button>
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
+          <!-- Featureタブ表示エリア -->
+          @if (activeTab() === 'features') {
+            <div class="features-box">
+              <div class="section-header-flex">
+                <h3>加工Feature一覧 ({{ features().length }}件)</h3>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  (click)="generateFeatures(analysis.id)"
+                  [disabled]="isGeneratingFeatures()"
+                >
+                  {{ isGeneratingFeatures() ? '生成中...' : 'Feature再生成' }}
+                </button>
               </div>
-            }
-          </div>
+
+              @if (isLoadingFeatures()) {
+                <div class="loading">Feature一覧を取得中...</div>
+              } @else if (features().length === 0) {
+                <p class="no-drawings">登録されている加工Featureはありません。「Feature再生成」ボタンから抽出を実行してください。</p>
+              } @else {
+                <div class="drawings-table-wrapper">
+                  <table class="data-table feature-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 50px;">No</th>
+                        <th style="width: 90px;">種類</th>
+                        <th>説明 / 根拠</th>
+                        <th style="width: 80px;">径 (mm)</th>
+                        <th style="width: 80px;">長さ (mm)</th>
+                        <th style="width: 80px;">深さ (mm)</th>
+                        <th style="width: 100px;">状態</th>
+                        <th style="width: 80px;">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (f of features(); track f.id) {
+                        <tr [class.row-warning]="f.needsReview">
+                          <td class="text-center">{{ f.sequenceNo }}</td>
+                          <td>
+                            <span class="badge badge-type">{{ f.featureType }}</span>
+                          </td>
+                          <td>
+                            <div class="feature-desc">{{ f.description || '-' }}</div>
+                            @if (f.sourceText) {
+                              <div class="feature-source">AI根拠: {{ f.sourceText }}</div>
+                            }
+                          </td>
+                          <td class="text-right">{{ f.diameter !== null ? f.diameter : '-' }}</td>
+                          <td class="text-right">{{ f.length !== null ? f.length : '-' }}</td>
+                          <td class="text-right">{{ f.depth !== null ? f.depth : '-' }}</td>
+                          <td>
+                            @if (f.needsReview) {
+                              <span class="badge badge-review-needed">要確認</span>
+                            } @else {
+                              <span class="badge badge-confirmed">確認済み</span>
+                            }
+                          </td>
+                          <td>
+                            <button
+                              class="btn btn-secondary btn-sm"
+                              (click)="openEditModal(f)"
+                            >
+                              編集
+                            </button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- 加工工程タブ表示エリア -->
+          @if (activeTab() === 'operations') {
+            <div class="operations-box">
+              <div class="section-header-flex">
+                <h3>加工工程候補一覧 ({{ operations().length }}件)</h3>
+                <button
+                  class="btn btn-primary btn-sm"
+                  (click)="handleGenerateOperations()"
+                  [disabled]="isGeneratingOperations()"
+                >
+                  {{ isGeneratingOperations() ? '生成中...' : '加工工程生成' }}
+                </button>
+              </div>
+
+              @if (isLoadingOperations()) {
+                <div class="loading">加工工程一覧を取得中...</div>
+              } @else if (operations().length === 0) {
+                <p class="no-drawings">登録されている加工工程はありません。「加工工程生成」ボタンをクリックして候補を生成してください。</p>
+              } @else {
+                <div class="drawings-table-wrapper">
+                  <table class="data-table operation-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 60px;">順序</th>
+                        <th style="width: 100px;">工程種類</th>
+                        <th>説明</th>
+                        <th style="width: 110px;">設備分類</th>
+                        <th style="width: 90px;">状態</th>
+                        <th style="width: 160px;">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (op of operations(); track op.id; let idx = $index) {
+                        <tr>
+                          <td class="text-center font-bold">{{ op.sequenceNo }}</td>
+                          <td>
+                            <span class="badge badge-type">{{ op.operationType }}</span>
+                          </td>
+                          <td>{{ op.description }}</td>
+                          <td>
+                            <span class="badge badge-machine">{{ op.machineType }}</span>
+                          </td>
+                          <td>
+                            @if (op.status === 'CONFIRMED') {
+                              <span class="badge badge-confirmed">確認済</span>
+                            } @else if (op.status === 'MANUAL') {
+                              <span class="badge badge-manual">手動</span>
+                            } @else {
+                              <span class="badge badge-review-needed">生成済</span>
+                            }
+                          </td>
+                          <td>
+                            <div class="table-actions">
+                              <button
+                                class="btn btn-secondary btn-sm btn-icon"
+                                [disabled]="idx === 0"
+                                (click)="moveOperation(idx, 'up')"
+                                title="上に移動"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                class="btn btn-secondary btn-sm btn-icon"
+                                [disabled]="idx === operations().length - 1"
+                                (click)="moveOperation(idx, 'down')"
+                                title="下に移動"
+                              >
+                                ▼
+                              </button>
+                              <button
+                                class="btn btn-secondary btn-sm"
+                                (click)="openEditOperationModal(op)"
+                              >
+                                編集
+                              </button>
+                              <button
+                                class="btn btn-danger btn-sm"
+                                (click)="deleteOperation(op.id)"
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          }
         } @else {
           <div class="no-analysis-box">
             <p>図面のAI解析がまだ実行されていません。「AI解析」ボタンをクリックして図面解析を実行してください。</p>
@@ -347,6 +457,75 @@
             <div class="modal-footer">
               <button class="btn btn-secondary" (click)="closeEditModal()">キャンセル</button>
               <button class="btn btn-primary" (click)="saveFeature()">保存する</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Operation編集モーダル -->
+      @if (editingOperation(); as targetOp) {
+        <div class="modal-backdrop">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>加工工程編集 (No.{{ targetOp.sequenceNo }})</h3>
+              <button class="modal-close" (click)="closeEditOperationModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                  <label>工程種類</label>
+                  <input
+                    type="text"
+                    [value]="targetOp.operationType"
+                    disabled
+                    class="form-control"
+                    style="background: #edf2f7;"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>工程順序</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="editOperationForm.sequenceNo"
+                    class="form-control"
+                    min="1"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>説明・加工内容</label>
+                <input
+                  type="text"
+                  [(ngModel)]="editOperationForm.description"
+                  class="form-control"
+                  placeholder="工程内容の説明"
+                />
+              </div>
+
+              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                  <label>設備分類</label>
+                  <input
+                    type="text"
+                    [(ngModel)]="editOperationForm.machineType"
+                    class="form-control"
+                    placeholder="例: CNC_LATHE"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>状態</label>
+                  <select [(ngModel)]="editOperationForm.status" class="form-control">
+                    <option value="GENERATED">GENERATED (生成済)</option>
+                    <option value="CONFIRMED">CONFIRMED (確認済)</option>
+                    <option value="MANUAL">MANUAL (手動)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" (click)="closeEditOperationModal()">キャンセル</button>
+              <button class="btn btn-primary" (click)="saveOperation()">保存する</button>
             </div>
           </div>
         </div>

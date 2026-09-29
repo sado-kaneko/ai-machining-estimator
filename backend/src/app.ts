@@ -6,6 +6,7 @@ import healthRoutes from './routes/health.routes';
 import quoteRoutes from './routes/quote.routes';
 import drawingRoutes from './routes/drawing.routes';
 import featureRoutes from './routes/feature.routes';
+import operationRoutes from './routes/operation.routes';
 
 const app = express();
 
@@ -23,7 +24,10 @@ app.use('/api/quotes', quoteRoutes);
 // 図面管理ルーターのマウント (/api/quotes/:quoteId/drawings, /api/drawings/:id)
 app.use('/api', drawingRoutes);
 
-// Feature管理ルーターのマウント (/api/drawing-analyses/:id/features)
+// Feature管理ルーターのマウント (/api/drawing-analyses/:id/features, /api/features/:id)
 app.use('/api', featureRoutes);
+
+// 加工工程ルーターのマウント (/api/quotes/:id/operations, /api/operations/:id)
+app.use('/api', operationRoutes);
 
 export default app;

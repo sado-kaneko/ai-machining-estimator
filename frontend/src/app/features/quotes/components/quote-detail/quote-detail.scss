@@ -106,6 +106,35 @@
   font-size: 0.9rem; color: #4a5568;
 }
 
+.tab-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab-btn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #cbd5e0;
+  background: #f7fafc;
+  color: #4a5568;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #edf2f7;
+    color: #2d3748;
+  }
+
+  &.active {
+    background: #2b6cb0;
+    color: #fff;
+    border-color: #2b6cb0;
+    font-weight: 600;
+  }
+}
+
 .badge {
   display: inline-block;
   padding: 0.2rem 0.5rem;
@@ -114,8 +143,16 @@
   border-radius: 9999px;
   &-draft { background: #edf2f7; color: #4a5568; }
   &-type { background: #edf2f7; color: #2d3748; border: 1px solid #cbd5e0; }
+  &-machine { background: #e2e8f0; color: #2b6cb0; font-family: monospace; font-size: 0.7rem; }
   &-review-needed { background: #feebc8; color: #c05621; border: 1px solid #fbd38d; }
   &-confirmed { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+  &-manual { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+}
+
+.btn-icon {
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  font-size: 0.7rem;
 }
 
 .upload-box {

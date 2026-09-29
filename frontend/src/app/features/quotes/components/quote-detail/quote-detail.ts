@@ -5,9 +5,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { QuoteService } from '../../services/quote.service';
 import { DrawingService } from '../../services/drawing.service';
 import { FeatureService } from '../../services/feature.service';
+import { OperationService } from '../../services/operation.service';
 import { Quote } from '../../models/quote.model';
 import { Drawing } from '../../models/drawing.model';
 import { DrawingAnalysis, Feature, UpdateFeatureRequest } from '../../models/feature.model';
+import { Operation, UpdateOperationRequest } from '../../models/operation.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -22,6 +24,7 @@ export class QuoteDetailComponent implements OnInit {
   private readonly quoteService = inject(QuoteService);
   private readonly drawingService = inject(DrawingService);
   private readonly featureService = inject(FeatureService);
+  private readonly operationService = inject(OperationService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
@@ -31,6 +34,9 @@ export class QuoteDetailComponent implements OnInit {
   isUploading = signal<boolean>(false);
   drawingErrorMessage = signal<string | null>(null);
   selectedFile = signal<File | null>(null);
+
+  // タブ切り替え ('features' | 'operations')
+  activeTab = signal<'features' | 'operations'>('features');
 
   // AI解析・Feature関連シグナル
   selectedDrawingId = signal<number | null>(null);
@@ -43,7 +49,7 @@ export class QuoteDetailComponent implements OnInit {
   featureErrorMessage = signal<string | null>(null);
   featureSuccessMessage = signal<string | null>(null);
 
-  // 編集モーダル用シグナル
+  // Feature編集モーダル用シグナル
   editingFeature = signal<Feature | null>(null);
   editForm: UpdateFeatureRequest = {
     featureType: 'OD',
@@ -52,6 +58,22 @@ export class QuoteDetailComponent implements OnInit {
     length: null,
     depth: null,
     needsReview: false,
+  };
+
+  // 加工工程(Operations)関連シグナル
+  operations = signal<Operation[]>([]);
+  isLoadingOperations = signal<boolean>(false);
+  isGeneratingOperations = signal<boolean>(false);
+  operationErrorMessage = signal<string | null>(null);
+  operationSuccessMessage = signal<string | null>(null);
+
+  // 工程編集モーダル用シグナル
+  editingOperation = signal<Operation | null>(null);
+  editOperationForm: UpdateOperationRequest = {
+    sequenceNo: 1,
+    description: '',
+    machineType: 'CNC_LATHE',
+    status: 'GENERATED',
   };
 
   ngOnInit(): void {
@@ -65,6 +87,7 @@ export class QuoteDetailComponent implements OnInit {
 
     this.loadQuote(id);
     this.loadDrawings(id);
+    this.loadOperations(id);
   }
 
   loadQuote(id: number): void {
@@ -285,5 +308,137 @@ export class QuoteDetailComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/quotes']);
+  }
+
+  // ==========================================
+  // 加工工程 (Operations) 管理メソッド
+  // ==========================================
+
+  loadOperations(quoteId: number): void {
+    this.isLoadingOperations.set(true);
+    this.operationService.getOperations(quoteId).subscribe({
+      next: (res) => {
+        this.operations.set(res.items);
+        this.isLoadingOperations.set(false);
+      },
+      error: () => {
+        this.operations.set([]);
+        this.isLoadingOperations.set(false);
+      },
+    });
+  }
+
+  handleGenerateOperations(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    // 重複生成防止: 既に工程が存在する場合は再生成確認ダイアログ
+    if (this.operations().length > 0) {
+      if (!confirm('既に加工工程が存在します。再生成すると既存の工程データが上書きされます。再生成してもよろしいですか？')) {
+        return;
+      }
+      this.executeGenerateOperations(q.id, true);
+    } else {
+      this.executeGenerateOperations(q.id, false);
+    }
+  }
+
+  private executeGenerateOperations(quoteId: number, force: boolean): void {
+    this.isGeneratingOperations.set(true);
+    this.operationErrorMessage.set(null);
+    this.operationSuccessMessage.set(null);
+
+    this.operationService.generateOperations(quoteId, force).subscribe({
+      next: (res) => {
+        this.isGeneratingOperations.set(false);
+        this.operationSuccessMessage.set(`加工工程候補（${res.operationCount}件）を生成しました。`);
+        this.loadOperations(quoteId);
+        this.activeTab.set('operations'); // 生成後は工程タブへ切り替え
+      },
+      error: (err) => {
+        this.isGeneratingOperations.set(false);
+        const msg = err?.error?.error?.message || '加工工程の生成に失敗しました。';
+        this.operationErrorMessage.set(msg);
+      },
+    });
+  }
+
+  openEditOperationModal(op: Operation): void {
+    this.editingOperation.set(op);
+    this.editOperationForm = {
+      sequenceNo: op.sequenceNo,
+      description: op.description,
+      machineType: op.machineType,
+      status: op.status,
+    };
+    this.operationErrorMessage.set(null);
+  }
+
+  closeEditOperationModal(): void {
+    this.editingOperation.set(null);
+  }
+
+  saveOperation(): void {
+    const target = this.editingOperation();
+    const q = this.quote();
+    if (!target || !q) return;
+
+    this.operationErrorMessage.set(null);
+    this.operationService.updateOperation(target.id, this.editOperationForm).subscribe({
+      next: (updated) => {
+        this.operationSuccessMessage.set(`工程 No.${updated.sequenceNo} を更新しました。`);
+        this.closeEditOperationModal();
+        this.loadOperations(q.id);
+      },
+      error: (err) => {
+        const msg = err?.error?.error?.message || '工程の更新に失敗しました。';
+        this.operationErrorMessage.set(msg);
+      },
+    });
+  }
+
+  deleteOperation(opId: number): void {
+    const q = this.quote();
+    if (!q) return;
+
+    if (!confirm('この工程を削除してもよろしいですか？')) {
+      return;
+    }
+
+    this.operationService.deleteOperation(opId).subscribe({
+      next: () => {
+        this.operationSuccessMessage.set('工程を削除しました。');
+        this.loadOperations(q.id);
+      },
+      error: () => {
+        this.operationErrorMessage.set('工程の削除に失敗しました。');
+      },
+    });
+  }
+
+  moveOperation(index: number, direction: 'up' | 'down'): void {
+    const list = this.operations();
+    const q = this.quote();
+    if (!q) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+
+    const currentOp = list[index];
+    const targetOp = list[targetIndex];
+
+    const currentSeq = currentOp.sequenceNo;
+    const targetSeq = targetOp.sequenceNo;
+
+    // sequenceNo をスワップして更新
+    this.operationService.updateOperation(currentOp.id, { sequenceNo: targetSeq }).subscribe({
+      next: () => {
+        this.operationService.updateOperation(targetOp.id, { sequenceNo: currentSeq }).subscribe({
+          next: () => {
+            this.loadOperations(q.id);
+          },
+        });
+      },
+    });
   }
 }
