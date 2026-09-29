@@ -1,0 +1,93 @@
+<div class="quote-form-container">
+  <div class="header">
+    <h1>新規見積登録</h1>
+  </div>
+
+  @if (errorMessage()) {
+    <div class="alert alert-error">
+      {{ errorMessage() }}
+    </div>
+  }
+
+  <form (ngSubmit)="onSubmit()" class="quote-form">
+    <div class="form-group">
+      <label for="customerName">顧客名 <span class="required">*</span></label>
+      <input
+        type="text"
+        id="customerName"
+        name="customerName"
+        [(ngModel)]="form.customerName"
+        placeholder="例: 株式会社サンプル"
+        maxlength="191"
+        required
+      />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label for="partNo">図番</label>
+        <input
+          type="text"
+          id="partNo"
+          name="partNo"
+          [(ngModel)]="form.partNo"
+          placeholder="例: DWG-1001"
+          maxlength="191"
+        />
+      </div>
+
+      <div class="form-group flex-1">
+        <label for="partName">品名</label>
+        <input
+          type="text"
+          id="partName"
+          name="partName"
+          [(ngModel)]="form.partName"
+          placeholder="例: 旋盤シャフト"
+          maxlength="191"
+        />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label for="quantity">数量 <span class="required">*</span></label>
+        <input
+          type="number"
+          id="quantity"
+          name="quantity"
+          [(ngModel)]="form.quantity"
+          min="1"
+          required
+        />
+      </div>
+
+      <div class="form-group flex-1">
+        <label for="status">状態</label>
+        <select id="status" name="status" [(ngModel)]="form.status">
+          <option value="DRAFT">DRAFT (下書き)</option>
+          <option value="ESTIMATED">ESTIMATED (見積完了)</option>
+          <option value="ORDERED">ORDERED (受注)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="notes">備考</label>
+      <textarea
+        id="notes"
+        name="notes"
+        [(ngModel)]="form.notes"
+        rows="4"
+        placeholder="特記事項や加工上の留意点などを入力"
+      ></textarea>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" (click)="cancel()">キャンセル</button>
+      <button type="submit" class="btn btn-primary" [disabled]="isSubmitting()">
+        {{ isSubmitting() ? '登録中...' : '登録する' }}
+      </button>
+    </div>
+  </form>
+</div>

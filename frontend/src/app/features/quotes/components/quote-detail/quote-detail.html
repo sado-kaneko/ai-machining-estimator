@@ -1,0 +1,89 @@
+<div class="quote-detail-container">
+  <div class="header">
+    <h1>見積案件詳細</h1>
+    <button class="btn btn-secondary" (click)="goBack()">一覧へ戻る</button>
+  </div>
+
+  @if (errorMessage()) {
+    <div class="alert alert-error">
+      {{ errorMessage() }}
+    </div>
+  }
+
+  @if (isLoading()) {
+    <div class="loading">データを読み込み中...</div>
+  } @else if (quote(); as q) {
+    <div class="detail-card">
+      <div class="detail-section">
+        <h2>基本情報</h2>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <span class="label">ID</span>
+            <span class="value">{{ q.id }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">見積番号</span>
+            <span class="value">{{ q.quoteNo || '-' }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">顧客名</span>
+            <span class="value font-bold">{{ q.customerName }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">状態</span>
+            <span class="value">
+              <span class="badge" [class.badge-draft]="q.status === 'DRAFT'">
+                {{ q.status }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h2>部品情報</h2>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <span class="label">図番</span>
+            <span class="value">{{ q.partNo || '-' }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">品名</span>
+            <span class="value">{{ q.partName || '-' }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">数量</span>
+            <span class="value">{{ q.quantity }} 個</span>
+          </div>
+        </div>
+      </div>
+
+      @if (q.notes) {
+        <div class="detail-section">
+          <h2>備考</h2>
+          <p class="notes-content">{{ q.notes }}</p>
+        </div>
+      }
+
+      <div class="detail-section">
+        <h2>登録・更新情報</h2>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <span class="label">登録日時</span>
+            <span class="value">{{ q.createdAt | date: 'yyyy/MM/dd HH:mm:ss' }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">更新日時</span>
+            <span class="value">{{ (q.updatedAt | date: 'yyyy/MM/dd HH:mm:ss') || '-' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>
