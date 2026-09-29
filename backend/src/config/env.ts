@@ -16,6 +16,10 @@ export interface EnvConfig {
     password: string;
     connectionLimit: number;
   };
+  upload: {
+    dir: string;
+    maxUploadMb: number;
+  };
 }
 
 function validateAndGetEnv(): EnvConfig {
@@ -43,6 +47,10 @@ function validateAndGetEnv(): EnvConfig {
     );
   }
 
+  const uploadDirRaw = process.env.UPLOAD_DIR || '../storage/drawings';
+  const uploadDir = path.resolve(__dirname, '../../', uploadDirRaw);
+  const maxUploadMb = parseInt(process.env.MAX_UPLOAD_MB || '20', 10);
+
   return {
     nodeEnv,
     port,
@@ -54,6 +62,10 @@ function validateAndGetEnv(): EnvConfig {
       user: user!,
       password: password!,
       connectionLimit,
+    },
+    upload: {
+      dir: uploadDir,
+      maxUploadMb,
     },
   };
 }

@@ -4,6 +4,7 @@ import helmet from 'helmet';
 
 import healthRoutes from './routes/health.routes';
 import quoteRoutes from './routes/quote.routes';
+import drawingRoutes from './routes/drawing.routes';
 
 const app = express();
 
@@ -17,5 +18,8 @@ app.use('/api/health', healthRoutes);
 
 // 見積案件CRUDルーターのマウント (/api/quotes)
 app.use('/api/quotes', quoteRoutes);
+
+// 図面管理ルーターのマウント (/api/quotes/:quoteId/drawings, /api/drawings/:id)
+app.use('/api', drawingRoutes);
 
 export default app;

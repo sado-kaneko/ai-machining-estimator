@@ -70,6 +70,70 @@
         </div>
       }
 
+      <!-- 図面管理セクション -->
+      <div class="detail-section">
+        <h2>図面管理 (PDF)</h2>
+
+        @if (drawingErrorMessage()) {
+          <div class="alert alert-error">
+            {{ drawingErrorMessage() }}
+          </div>
+        }
+
+        <div class="upload-box">
+          <input
+            type="file"
+            id="pdfFileInput"
+            accept="application/pdf"
+            (change)="onFileSelected($event)"
+            [disabled]="isUploading()"
+          />
+          <button
+            class="btn btn-primary"
+            (click)="uploadDrawing()"
+            [disabled]="!selectedFile() || isUploading()"
+          >
+            {{ isUploading() ? 'アップロード中...' : 'PDFをアップロード' }}
+          </button>
+        </div>
+
+        @if (drawings().length === 0) {
+          <p class="no-drawings">アップロードされた図面はありません。</p>
+        } @else {
+          <div class="drawings-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>ファイル名</th>
+                  <th>サイズ</th>
+                  <th>登録日時</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of drawings(); track d.id) {
+                  <tr>
+                    <td>{{ d.id }}</td>
+                    <td>{{ d.originalName }}</td>
+                    <td>{{ (d.fileSize / 1024) | number: '1.0-1' }} KB</td>
+                    <td>{{ d.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
+                    <td>
+                      <button
+                        class="btn btn-danger btn-sm"
+                        (click)="deleteDrawing(d.id)"
+                      >
+                        削除
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
       <div class="detail-section">
         <h2>登録・更新情報</h2>
         <div class="detail-grid">

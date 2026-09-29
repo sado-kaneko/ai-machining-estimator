@@ -1,0 +1,36 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { environment } from '../../../../environments/environment';
+import { Drawing, DrawingListResponse } from '../models/drawing.model';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class DrawingService {
+  private readonly http = inject(HttpClient);
+  private readonly baseUrl = environment.apiBaseUrl;
+
+  /**
+   * PDF図面アップロード (POST /api/quotes/:quoteId/drawings)
+   */
+  uploadDrawing(quoteId: number, file: File): Observable<Drawing> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<Drawing>(`${this.baseUrl}/quotes/${quoteId}/drawings`, formData);
+  }
+
+  /**
+   * 見積案件の図面一覧取得 (GET /api/quotes/:quoteId/drawings)
+   */
+  getDrawings(quoteId: number): Observable<DrawingListResponse> {
+    return this.http.get<DrawingListResponse>(`${this.baseUrl}/quotes/${quoteId}/drawings`);
+  }
+
+  /**
+   * 図面削除 (DELETE /api/drawings/:id)
+   */
+  deleteDrawing(drawingId: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/drawings/${drawingId}`);
+  }
+}

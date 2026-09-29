@@ -29,6 +29,18 @@
   border: 1px solid transparent;
   transition: background-color 0.2s;
 
+  &-primary {
+    background-color: #2b6cb0;
+    color: #fff;
+    &:hover:not(:disabled) {
+      background-color: #2c5282;
+    }
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
   &-secondary {
     background-color: #edf2f7;
     color: #4a5568;
@@ -36,6 +48,20 @@
     &:hover {
       background-color: #e2e8f0;
     }
+  }
+
+  &-danger {
+    background-color: #fff5f5;
+    color: #e53e3e;
+    border-color: #feb2b2;
+    &:hover {
+      background-color: #fed7d7;
+    }
+  }
+
+  &-sm {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
   }
 }
 
@@ -133,5 +159,60 @@
   &-draft {
     background-color: #edf2f7;
     color: #4a5568;
+  }
+}
+
+/* 図面管理スタイル */
+.upload-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  background-color: #f7fafc;
+  border: 1px dashed #cbd5e0;
+  border-radius: 6px;
+
+  input[type="file"] {
+    font-size: 0.875rem;
+  }
+}
+
+.no-drawings {
+  color: #a0aec0;
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 1rem 0;
+}
+
+.drawings-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+
+  th, td {
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.85rem;
+  }
+
+  th {
+    background-color: #f8fafc;
+    font-weight: 600;
+    color: #4a5568;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody tr:hover {
+    background-color: #f7fafc;
   }
 }
