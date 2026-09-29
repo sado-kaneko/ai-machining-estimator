@@ -24,6 +24,7 @@ export interface AutomaticLatheOperation {
 export interface LatheCycleTimeSummary {
   quoteId: number;
   machineName: string;
+  calculationEngineType?: string;
   materialName: string;
   quantity: number;
   cuttingTimeSec: number;
@@ -32,3 +33,4 @@ export interface LatheCycleTimeSummary {
   totalLotTimeSec: number;
   operations: AutomaticLatheOperation[];
 }
+

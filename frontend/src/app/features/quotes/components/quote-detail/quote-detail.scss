@@ -287,3 +287,52 @@
   color: #718096;
   margin: 0.25rem 0 0 0;
 }
+
+/* PHASE09: 加工機選定・計算エンジン表示スタイル */
+.badge-engine {
+  background: #e9d8fd;
+  color: #553c9a;
+  border: 1px solid #d6bcfa;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.machine-select-card {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.machine-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.machine-select {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #2d3748;
+  background-color: #fff;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  min-width: 200px;
+
+  &:focus {
+    border-color: #3182ce;
+    box-shadow: 0 0 0 1px #3182ce;
+  }
+}
+
+.updating-text {
+  font-size: 0.75rem;
+  color: #3182ce;
+  animation: pulse 1.5s infinite;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
+}
+

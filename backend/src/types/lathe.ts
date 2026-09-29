@@ -2,10 +2,31 @@
 export interface MachineMasterRow {
   id: number;
   machine_type: string;
+  calculation_engine_type: string;
   machine_name: string;
   maker: string | null;
   model: string | null;
   max_rpm: number;
+  created_at: Date;
+  updated_at: Date | null;
+}
+
+export interface MachineDto {
+  id: number;
+  machineType: string;
+  calculationEngineType: string;
+  machineName: string;
+  maker: string | null;
+  model: string | null;
+  maxRpm: number;
+}
+
+export interface QuoteMachineSelectionRow {
+  id: number;
+  quote_id: number;
+  machine_id: number;
+  priority: number;
+  selected: number;
   created_at: Date;
   updated_at: Date | null;
 }
@@ -128,6 +149,7 @@ export interface AutomaticLatheOperationDto {
 export interface LatheCycleTimeSummaryDto {
   quoteId: number;
   machineName: string;
+  calculationEngineType?: string;
   materialName: string;
   quantity: number;
   cuttingTimeSec: number;

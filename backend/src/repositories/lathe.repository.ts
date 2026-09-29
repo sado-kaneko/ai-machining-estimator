@@ -16,10 +16,63 @@ export class LatheRepository {
    */
   async findMachineByType(machineType: string): Promise<MachineMasterRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, machine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master WHERE machine_type = ? LIMIT 1',
+      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master WHERE machine_type = ? LIMIT 1',
       [machineType]
     );
     return rows.length > 0 ? (rows[0] as MachineMasterRow) : null;
+  }
+
+  /**
+   * 設備マスタ全件取得 (GET /api/machines)
+   */
+  async findAllMachines(): Promise<MachineMasterRow[]> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master ORDER BY id ASC'
+    );
+    return rows as MachineMasterRow[];
+  }
+
+  /**
+   * 設備ID指定取得
+   */
+  async findMachineById(id: number): Promise<MachineMasterRow | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master WHERE id = ? LIMIT 1',
+      [id]
+    );
+    return rows.length > 0 ? (rows[0] as MachineMasterRow) : null;
+  }
+
+  /**
+   * 案件に選択された設備を取得 (無ければCincom L20をデフォルト)
+   */
+  async getQuoteSelectedMachine(quoteId: number): Promise<MachineMasterRow | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT m.id, m.machine_type, m.calculation_engine_type, m.machine_name, m.maker, m.model, m.max_rpm, m.created_at, m.updated_at
+       FROM quote_machine_selection s
+       JOIN machine_master m ON s.machine_id = m.id
+       WHERE s.quote_id = ? AND s.selected = 1
+       ORDER BY s.priority ASC
+       LIMIT 1`,
+      [quoteId]
+    );
+    if (rows.length > 0) {
+      return rows[0] as MachineMasterRow;
+    }
+    // デフォルト設備（Cincom L20）を取得
+    return this.findMachineByType('NC_AUTOMATIC_LATHE');
+  }
+
+  /**
+   * 案件の加工機設定 (POST /api/quotes/:id/machine)
+   */
+  async setQuoteMachine(quoteId: number, machineId: number): Promise<void> {
+    // 既存の選択を解除
+    await pool.query('DELETE FROM quote_machine_selection WHERE quote_id = ?', [quoteId]);
+    await pool.query(
+      'INSERT INTO quote_machine_selection (quote_id, machine_id, priority, selected) VALUES (?, ?, 1, 1)',
+      [quoteId, machineId]
+    );
   }
 
   /**

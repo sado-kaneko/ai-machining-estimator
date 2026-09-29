@@ -63,6 +63,58 @@
         </div>
       </div>
 
+      <!-- 加工設備・計算エンジン設定 (PHASE09) -->
+      <div class="detail-section">
+        <h2>加工設備・計算エンジン設定</h2>
+        <div class="machine-select-card">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="label">使用加工機</span>
+              <div class="machine-picker-row">
+                <select
+                  class="form-control machine-select"
+                  [value]="selectedMachineId()"
+                  (change)="onMachineSelectChange($event)"
+                  [disabled]="isChangingMachine()"
+                >
+                  @for (m of machines(); track m.id) {
+                    <option [value]="m.id">
+                      {{ m.machineName }} ({{ m.maker || '-' }})
+                    </option>
+                  }
+                </select>
+                @if (isChangingMachine()) {
+                  <span class="updating-text">更新中...</span>
+                }
+              </div>
+            </div>
+
+            <div class="detail-item">
+              <span class="label">計算Engine</span>
+              <span class="value">
+                <span class="badge badge-engine">
+                  {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}
+                </span>
+              </span>
+            </div>
+
+            <div class="detail-item">
+              <span class="label">設備仕様</span>
+              @if (selectedMachine(); as m) {
+                <span class="value text-muted">
+                  型式: {{ m.model || m.machineName }} / 最大回転数: {{ m.maxRpm }} rpm
+                </span>
+              } @else {
+                <span class="value text-muted">-</span>
+              }
+            </div>
+          </div>
+          @if (machineMessage()) {
+            <div class="alert alert-success mt-2">{{ machineMessage() }}</div>
+          }
+        </div>
+      </div>
+
       @if (q.notes) {
         <div class="detail-section">
           <h2>備考</h2>
@@ -481,15 +533,18 @@
             </div>
           }
 
-          <!-- NC自動旋盤エンジンタブ表示エリア (PHASE08) -->
+          <!-- NC自動旋盤・加工機別計算エンジンタブ表示エリア (PHASE09) -->
           @if (activeTab() === 'lathe') {
             <div class="lathe-box">
               <div class="section-header-flex">
                 <div>
-                  <h3>NC自動旋盤 見積計算エンジン</h3>
-                  <p class="section-subtext">対象設備: Citizen Cincom L20 (ガイドブッシュ式自動盤)</p>
+                  <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <h3>加工機別サイクルタイム計算</h3>
+                    <span class="badge badge-engine">Engine: {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}</span>
+                  </div>
+                  <p class="section-subtext">使用加工機: <strong>{{ selectedMachine()?.machineName || 'Cincom L20' }}</strong> ({{ selectedMachine()?.model || '-' }})</p>
                 </div>
-                <div class="header-actions" style="display: flex; gap: 0.5rem;">
+                <div class="header-actions" style="display: flex; gap: 0.5rem; align-items: center;">
                   <button
                     class="btn btn-secondary btn-sm"
                     (click)="handleGenerateLatheOperations()"
@@ -502,7 +557,7 @@
                     (click)="handleCalculateLatheCycleTime()"
                     [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
                   >
-                    {{ isCalculatingLatheCt() ? '計算実行中...' : '自動旋盤サイクルタイム計算' }}
+                    {{ isCalculatingLatheCt() ? '計算実行中...' : 'サイクルタイム計算' }}
                   </button>
                 </div>
               </div>

@@ -8,12 +8,14 @@ import { FeatureService } from '../../services/feature.service';
 import { OperationService } from '../../services/operation.service';
 import { CycleTimeService } from '../../services/cycle-time.service';
 import { LatheService } from '../../services/lathe.service';
+import { CalculationService } from '../../services/calculation.service';
 import { Quote } from '../../models/quote.model';
 import { Drawing } from '../../models/drawing.model';
 import { DrawingAnalysis, Feature, UpdateFeatureRequest } from '../../models/feature.model';
 import { Operation, UpdateOperationRequest } from '../../models/operation.model';
 import { CycleTimeResult } from '../../models/cycle-time.model';
 import { AutomaticLatheOperation, LatheCycleTimeSummary } from '../../models/lathe.model';
+import { Machine, QuoteMachineSelection } from '../../models/machine.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -31,6 +33,7 @@ export class QuoteDetailComponent implements OnInit {
   private readonly operationService = inject(OperationService);
   private readonly cycleTimeService = inject(CycleTimeService);
   private readonly latheService = inject(LatheService);
+  private readonly calculationService = inject(CalculationService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
@@ -41,8 +44,15 @@ export class QuoteDetailComponent implements OnInit {
   drawingErrorMessage = signal<string | null>(null);
   selectedFile = signal<File | null>(null);
 
+  // 加工機・計算エンジン関連 (PHASE09)
+  machines = signal<Machine[]>([]);
+  selectedMachineId = signal<number | null>(null);
+  selectedMachine = signal<Machine | null>(null);
+  isChangingMachine = signal<boolean>(false);
+  machineMessage = signal<string | null>(null);
+
   // タブ切り替え ('features' | 'operations' | 'cycle-time' | 'lathe')
-  activeTab = signal<'features' | 'operations' | 'cycle-time' | 'lathe'>('features');
+  activeTab = signal<'features' | 'operations' | 'cycle-time' | 'lathe'>('lathe');
 
   // NC自動旋盤エンジン関連シグナル (PHASE08)
   latheOperations = signal<AutomaticLatheOperation[]>([]);
@@ -113,6 +123,7 @@ export class QuoteDetailComponent implements OnInit {
     this.loadCycleTime(id);
     this.loadLatheOperations(id);
     this.loadLatheCycleTime(id);
+    this.loadMachinesAndSelection(id);
   }
 
   loadQuote(id: number): void {
@@ -564,6 +575,63 @@ export class QuoteDetailComponent implements OnInit {
     });
   }
 
+  loadMachinesAndSelection(quoteId: number): void {
+    this.calculationService.getMachines().subscribe({
+      next: (res) => {
+        this.machines.set(res.items);
+        // 案件の選択中設備を取得
+        this.calculationService.getQuoteMachine(quoteId).subscribe({
+          next: (sel) => {
+            this.selectedMachineId.set(sel.id);
+            const found = res.items.find((m) => m.id === sel.id) || null;
+            this.selectedMachine.set(found);
+          },
+          error: () => {
+            const def = res.items[0] || null;
+            if (def) {
+              this.selectedMachineId.set(def.id);
+              this.selectedMachine.set(def);
+            }
+          },
+        });
+      },
+      error: () => {
+        this.machines.set([]);
+      },
+    });
+  }
+
+  onMachineSelectChange(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    const machineId = parseInt(target.value, 10);
+    if (!machineId || isNaN(machineId)) return;
+    this.changeMachine(machineId);
+  }
+
+  changeMachine(machineId: number): void {
+    const q = this.quote();
+    if (!q) return;
+
+    this.isChangingMachine.set(true);
+    this.machineMessage.set(null);
+
+    this.calculationService.setQuoteMachine(q.id, machineId).subscribe({
+      next: (res) => {
+        this.isChangingMachine.set(false);
+        this.selectedMachineId.set(res.id);
+        const m = this.machines().find((item) => item.id === res.id) || null;
+        this.selectedMachine.set(m);
+        this.machineMessage.set(`使用加工機を「${res.machineName}」に変更しました。`);
+        setTimeout(() => this.machineMessage.set(null), 3000);
+      },
+      error: (err) => {
+        this.isChangingMachine.set(false);
+        const msg = err?.error?.error?.message || '加工機の変更に失敗しました。';
+        alert(msg);
+      },
+    });
+  }
+
   handleCalculateLatheCycleTime(): void {
     const q = this.quote();
     if (!q) return;
@@ -572,16 +640,17 @@ export class QuoteDetailComponent implements OnInit {
     this.latheErrorMessage.set(null);
     this.latheSuccessMessage.set(null);
 
-    this.latheService.calculateLatheCycleTime(q.id).subscribe({
+    // PHASE09: 共通計算基盤 (POST /api/quotes/:id/cycle-time/calculate) 経由で実行
+    this.calculationService.calculateCycleTime(q.id).subscribe({
       next: (res) => {
         this.latheCycleTime.set(res);
         this.isCalculatingLatheCt.set(false);
-        this.latheSuccessMessage.set('NC自動旋盤サイクルタイムの計算が完了しました。');
+        this.latheSuccessMessage.set(`【${res.machineName} (${res.calculationEngineType || 'AUTOMATIC_LATHE'})】サイクルタイムの計算が完了しました。`);
         this.loadLatheOperations(q.id);
       },
       error: (err) => {
         this.isCalculatingLatheCt.set(false);
-        const msg = err?.error?.error?.message || '自動旋盤サイクルタイムの計算に失敗しました。';
+        const msg = err?.error?.error?.message || 'サイクルタイムの計算に失敗しました。';
         this.latheErrorMessage.set(msg);
       },
     });
