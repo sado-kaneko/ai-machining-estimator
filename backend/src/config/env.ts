@@ -20,6 +20,10 @@ export interface EnvConfig {
     dir: string;
     maxUploadMb: number;
   };
+  openai: {
+    apiKey: string;
+    model: string;
+  };
 }
 
 function validateAndGetEnv(): EnvConfig {
@@ -51,6 +55,13 @@ function validateAndGetEnv(): EnvConfig {
   const uploadDir = path.resolve(__dirname, '../../', uploadDirRaw);
   const maxUploadMb = parseInt(process.env.MAX_UPLOAD_MB || '20', 10);
 
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const openaiModel = process.env.OPENAI_MODEL || 'gpt-5-mini';
+
+  if (!openaiApiKey) {
+    throw new Error('OPENAI_API_KEY が設定されていません。');
+  }
+
   return {
     nodeEnv,
     port,
@@ -66,6 +77,10 @@ function validateAndGetEnv(): EnvConfig {
     upload: {
       dir: uploadDir,
       maxUploadMb,
+    },
+    openai: {
+      apiKey: openaiApiKey,
+      model: openaiModel,
     },
   };
 }
