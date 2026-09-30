@@ -10,6 +10,7 @@ import operationRoutes from './routes/operation.routes';
 import cycleTimeRoutes from './routes/cycle-time.routes';
 import latheRoutes from './routes/lathe.routes';
 import actualCycleTimeRoutes from './routes/actual-cycle-time.routes';
+import materialRoutes from './routes/material.routes';
 
 const app = express();
 
@@ -41,6 +42,9 @@ app.use('/api', latheRoutes);
 
 // 加工実績・比較ルーターのマウント (/api/quotes/:id/actual-cycle-times, /api/quotes/:id/cycle-time-comparison)
 app.use('/api', actualCycleTimeRoutes);
+
+// 素材情報ルーターのマウント (/api/quotes/:id/material, /api/materials/:id)
+app.use('/api', materialRoutes);
 
 export default app;
 

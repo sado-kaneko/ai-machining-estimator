@@ -3,6 +3,7 @@ import { drawingRepository } from '../repositories/drawing.repository';
 import { drawingAnalysisRepository } from '../repositories/drawing-analysis.repository';
 import { featureRepository } from '../repositories/feature.repository';
 import { latheRepository } from '../repositories/lathe.repository';
+import { materialRepository } from '../repositories/material.repository';
 import {
   AutomaticLatheOperationDto,
   CreateLatheOperationInput,
@@ -127,7 +128,8 @@ export class LatheService {
     // 自動旋盤特有の工程（突切りや背面加工）を末尾に補完追加（存在しない場合）
     const hasCutoff = inputs.some(i => i.processId === procMap.get('突切り'));
     if (!hasCutoff && procMap.has('突切り')) {
-      const stockDiameter = inputs[0]?.diameter || 20.0;
+      const materialInfo = await materialRepository.findByQuoteId(quoteId);
+      const stockDiameter = (materialInfo?.diameter ? Number(materialInfo.diameter) : null) || inputs[0]?.diameter || 20.0;
       inputs.push({
         quoteId,
         featureId: null,

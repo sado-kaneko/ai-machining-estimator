@@ -61,12 +61,36 @@ export const SurfaceRequirementItemSchema = z.object({
 export type SurfaceRequirementItem = z.infer<typeof SurfaceRequirementItemSchema>;
 
 /**
+ * 材料詳細情報 (PHASE11)
+ */
+export const MaterialDetailSchema = z.object({
+  name: z.string().nullable(),
+  standard: z.string().nullable(),
+  confidence: z.number().nullable(),
+});
+export type MaterialDetail = z.infer<typeof MaterialDetailSchema>;
+
+/**
+ * 素材詳細情報 (PHASE11)
+ */
+export const StockDetailSchema = z.object({
+  shape: z.enum(['ROUND_BAR', 'PLATE', 'PIPE', 'BLOCK', 'OTHER']).nullable(),
+  diameter: z.number().nullable(),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  length: z.number().nullable(),
+});
+export type StockDetail = z.infer<typeof StockDetailSchema>;
+
+/**
  * AI図面解析レスポンススキーマ
  * ※ OpenAI Structured Outputs 準拠
  */
 export const DrawingAnalysisSchema = z.object({
   partType: z.string().nullable(),
   material: z.string().nullable(),
+  materialDetail: MaterialDetailSchema.nullable(),
+  stockDetail: StockDetailSchema.nullable(),
   overallDimensions: OverallDimensionsSchema,
   features: z.array(DrawingFeatureSchema),
   tolerances: z.array(ToleranceItemSchema),

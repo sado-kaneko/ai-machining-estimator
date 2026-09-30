@@ -10,6 +10,7 @@ import { CycleTimeService } from '../../services/cycle-time.service';
 import { LatheService } from '../../services/lathe.service';
 import { CalculationService } from '../../services/calculation.service';
 import { ActualCycleTimeService } from '../../services/actual-cycle-time.service';
+import { MaterialService } from '../../services/material.service';
 import { Quote } from '../../models/quote.model';
 import { Drawing } from '../../models/drawing.model';
 import { DrawingAnalysis, Feature, UpdateFeatureRequest } from '../../models/feature.model';
@@ -22,6 +23,11 @@ import {
   CreateActualCycleTimeRequest,
   CycleTimeComparison,
 } from '../../models/actual-cycle-time.model';
+import {
+  MaterialInformation,
+  SaveMaterialRequest,
+  ShapeType,
+} from '../../models/material.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -41,11 +47,30 @@ export class QuoteDetailComponent implements OnInit {
   private readonly latheService = inject(LatheService);
   private readonly calculationService = inject(CalculationService);
   private readonly actualCycleTimeService = inject(ActualCycleTimeService);
+  private readonly materialService = inject(MaterialService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
   isLoading = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
+
+  // 素材情報関連シグナル (PHASE11)
+  materialInfo = signal<MaterialInformation | null>(null);
+  isLoadingMaterial = signal<boolean>(false);
+  isSavingMaterial = signal<boolean>(false);
+  materialErrorMessage = signal<string | null>(null);
+  materialSuccessMessage = signal<string | null>(null);
+  showMaterialModal = signal<boolean>(false);
+  materialForm: SaveMaterialRequest = {
+    materialName: '',
+    materialStandard: '',
+    shapeType: 'ROUND_BAR',
+    diameter: null,
+    width: null,
+    height: null,
+    length: null,
+    weight: null,
+  };
 
   isUploading = signal<boolean>(false);
   drawingErrorMessage = signal<string | null>(null);
@@ -158,6 +183,7 @@ export class QuoteDetailComponent implements OnInit {
     this.loadMachinesAndSelection(id);
     this.loadActualCycleTimes(id);
     this.loadComparison(id);
+    this.loadMaterial(id);
   }
 
   loadQuote(id: number): void {
@@ -245,6 +271,10 @@ export class QuoteDetailComponent implements OnInit {
       next: (res) => {
         this.isAnalyzing.set(false);
         this.featureSuccessMessage.set('AI解析が正常に完了しました。加工Featureを自動生成しています...');
+        // 素材情報の再読み込み (PHASE11)
+        if (this.quote()) {
+          this.loadMaterial(this.quote()!.id);
+        }
         // 自動でFeature生成を実行
         this.generateFeatures(res.id);
       },
@@ -808,6 +838,78 @@ export class QuoteDetailComponent implements OnInit {
       error: (err) => {
         const msg = err?.error?.error?.message || '実績の削除に失敗しました。';
         alert(msg);
+      },
+    });
+  }
+
+  // ==============================================================
+  // 素材情報 (PHASE11) メソッド
+  // ==============================================================
+
+  loadMaterial(quoteId: number): void {
+    this.isLoadingMaterial.set(true);
+    this.materialErrorMessage.set(null);
+
+    this.materialService.getMaterialByQuoteId(quoteId).subscribe({
+      next: (data) => {
+        this.materialInfo.set(data);
+        this.isLoadingMaterial.set(false);
+      },
+      error: () => {
+        this.materialInfo.set(null);
+        this.isLoadingMaterial.set(false);
+      },
+    });
+  }
+
+  openMaterialModal(): void {
+    const current = this.materialInfo();
+    const analysis = this.activeAnalysis();
+
+    this.materialForm = {
+      materialName: current?.materialName ?? analysis?.material ?? '',
+      materialStandard: current?.materialStandard ?? '',
+      shapeType: current?.shapeType ?? 'ROUND_BAR',
+      diameter: current?.diameter ?? analysis?.stockDiameter ?? null,
+      width: current?.width ?? null,
+      height: current?.height ?? null,
+      length: current?.length ?? null,
+      weight: current?.weight ?? null,
+      source: 'MANUAL',
+    };
+    this.materialErrorMessage.set(null);
+    this.showMaterialModal.set(true);
+  }
+
+  closeMaterialModal(): void {
+    this.showMaterialModal.set(false);
+    this.materialErrorMessage.set(null);
+  }
+
+  handleSaveMaterial(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    this.isSavingMaterial.set(true);
+    this.materialErrorMessage.set(null);
+
+    const payload: SaveMaterialRequest = {
+      ...this.materialForm,
+      source: 'MANUAL',
+    };
+
+    this.materialService.saveMaterialForQuote(q.id, payload).subscribe({
+      next: (saved) => {
+        this.isSavingMaterial.set(false);
+        this.materialInfo.set(saved);
+        this.showMaterialModal.set(false);
+        this.materialSuccessMessage.set('素材情報を更新しました。');
+        setTimeout(() => this.materialSuccessMessage.set(null), 3000);
+      },
+      error: (err) => {
+        this.isSavingMaterial.set(false);
+        const msg = err?.error?.error?.message || '素材情報の保存に失敗しました。';
+        this.materialErrorMessage.set(msg);
       },
     });
   }

@@ -267,8 +267,82 @@
               </div>
             </div>
 
-            <div class="step-next-bar">
-              <span class="text-muted">AI解析が完了しました。抽出された加工内容（Feature）を確認します。</span>
+            <!-- PHASE11: 素材情報表示エリア -->
+            <div class="material-info-card mt-3">
+              <div class="material-card-header">
+                <div>
+                  <h4 class="material-title">素材情報 (Material Information)</h4>
+                  <p class="material-subtext">加工開始時の素材条件です。自動旋盤・NC旋盤の加工代・材料送り計算に利用されます。</p>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" (click)="openMaterialModal()">
+                  ✎ 素材情報を編集
+                </button>
+              </div>
+
+              @if (materialSuccessMessage()) {
+                <div class="alert alert-success mt-2 mb-2">{{ materialSuccessMessage() }}</div>
+              }
+
+              @if (materialInfo(); as mat) {
+                <div class="detail-grid mt-2">
+                  <div class="detail-item">
+                    <span class="label">材料名</span>
+                    <span class="value font-bold font-highlight">{{ mat.materialName || '未指定' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">材料規格</span>
+                    <span class="value">{{ mat.materialStandard || '-' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">素材形状</span>
+                    <span class="value">
+                      @switch (mat.shapeType) {
+                        @case ('ROUND_BAR') { 丸棒 (ROUND_BAR) }
+                        @case ('PLATE') { 板材 (PLATE) }
+                        @case ('PIPE') { パイプ (PIPE) }
+                        @case ('BLOCK') { 角材 (BLOCK) }
+                        @default { その他 ({{ mat.shapeType }}) }
+                      }
+                    </span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">素材外径</span>
+                    <span class="value font-bold">{{ mat.diameter !== null ? ('φ ' + mat.diameter + ' mm') : '-' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">素材長</span>
+                    <span class="value">{{ mat.length !== null ? (mat.length + ' mm') : '未指定 (図面記載なし)' }}</span>
+                  </div>
+                  @if (mat.shapeType === 'PLATE' || mat.shapeType === 'BLOCK') {
+                    <div class="detail-item">
+                      <span class="label">幅 &times; 高さ</span>
+                      <span class="value">{{ mat.width || '-' }} &times; {{ mat.height || '-' }} mm</span>
+                    </div>
+                  }
+                  <div class="detail-item">
+                    <span class="label">素材重量</span>
+                    <span class="value">{{ mat.weight !== null ? (mat.weight + ' kg') : '-' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">取得元</span>
+                    <span class="value">
+                      @if (mat.source === 'MANUAL') {
+                        <span class="badge badge-manual">手動修正</span>
+                      } @else {
+                        <span class="badge badge-highlight">AI抽出</span>
+                      }
+                    </span>
+                  </div>
+                </div>
+              } @else {
+                <div class="no-drawings mt-2">
+                  <p>素材情報がまだ登録されていません。「✎ 素材情報を編集」から手動で登録するか、図面AI解析を実行してください。</p>
+                </div>
+              }
+            </div>
+
+            <div class="step-next-bar mt-3">
+              <span class="text-muted">AI解析および素材情報確認完了。抽出された加工内容（Feature）を確認します。</span>
               <button class="btn btn-primary" (click)="activeTab.set('review')">
                 次へ: 加工内容確認 (STEP 2) &rarr;
               </button>
@@ -1073,6 +1147,131 @@
               [disabled]="isSubmittingActual()"
             >
               {{ isSubmittingActual() ? '登録中...' : '実績を登録する' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- 素材情報編集モーダル (PHASE11) -->
+    @if (showMaterialModal()) {
+      <div class="modal-backdrop">
+        <div class="modal-content modal-material">
+          <div class="modal-header">
+            <h3>素材条件・材料情報の編集</h3>
+            <button class="modal-close" (click)="closeMaterialModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            @if (materialErrorMessage()) {
+              <div class="alert alert-error">{{ materialErrorMessage() }}</div>
+            }
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>材料名 (材質) *</label>
+                <input
+                  type="text"
+                  [(ngModel)]="materialForm.materialName"
+                  class="form-control"
+                  placeholder="例: SUS304, S45C, A2017"
+                />
+              </div>
+              <div class="form-group">
+                <label>材料規格</label>
+                <input
+                  type="text"
+                  [(ngModel)]="materialForm.materialStandard"
+                  class="form-control"
+                  placeholder="例: JIS G 4303"
+                />
+              </div>
+            </div>
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>素材形状 *</label>
+                <select [(ngModel)]="materialForm.shapeType" class="form-control">
+                  <option value="ROUND_BAR">ROUND_BAR (丸棒)</option>
+                  <option value="PLATE">PLATE (板材)</option>
+                  <option value="PIPE">PIPE (パイプ)</option>
+                  <option value="BLOCK">BLOCK (角材)</option>
+                  <option value="OTHER">OTHER (その他)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>素材外径 (mm)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="materialForm.diameter"
+                  class="form-control"
+                  min="0"
+                  step="0.1"
+                  placeholder="例: 30.0"
+                />
+              </div>
+            </div>
+
+            @if (materialForm.shapeType === 'PLATE' || materialForm.shapeType === 'BLOCK') {
+              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                  <label>幅 (mm)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="materialForm.width"
+                    class="form-control"
+                    min="0"
+                    step="0.1"
+                    placeholder="例: 50.0"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>高さ (mm)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="materialForm.height"
+                    class="form-control"
+                    min="0"
+                    step="0.1"
+                    placeholder="例: 20.0"
+                  />
+                </div>
+              </div>
+            }
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>素材長 (mm)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="materialForm.length"
+                  class="form-control"
+                  min="0"
+                  step="1"
+                  placeholder="例: 2500"
+                />
+                <small class="help-text">バーフィーダー供給長や定尺長を指定</small>
+              </div>
+              <div class="form-group">
+                <label>素材重量 (kg)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="materialForm.weight"
+                  class="form-control"
+                  min="0"
+                  step="0.01"
+                  placeholder="例: 1.5"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="closeMaterialModal()">キャンセル</button>
+            <button
+              class="btn btn-primary"
+              (click)="handleSaveMaterial()"
+              [disabled]="isSavingMaterial()"
+            >
+              {{ isSavingMaterial() ? '保存中...' : '素材情報を保存' }}
             </button>
           </div>
         </div>

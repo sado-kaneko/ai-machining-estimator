@@ -691,4 +691,42 @@
   font-weight: 600;
 }
 
+/* ============================================================
+   PHASE11: 素材情報 (Material Information) スタイル
+   ============================================================ */
+.material-info-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #319795;
+  border-radius: 6px;
+  padding: 1.25rem;
+}
+
+.material-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px dashed #cbd5e0;
+  padding-bottom: 0.5rem;
+
+  .material-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #234e52;
+    margin: 0 0 0.2rem 0;
+  }
+
+  .material-subtext {
+    font-size: 0.75rem;
+    color: #718096;
+    margin: 0;
+  }
+}
+
+.modal-material {
+  max-width: 580px;
+}
+
+
 

@@ -5,6 +5,7 @@ import { openaiClient } from '../config/openai';
 import { PROMPT_VERSION, SYSTEM_PROMPT, USER_PROMPT } from '../prompts/drawing-analysis.prompt';
 import { drawingAnalysisRepository } from '../repositories/drawing-analysis.repository';
 import { drawingRepository } from '../repositories/drawing.repository';
+import { materialRepository } from '../repositories/material.repository';
 import { DrawingAnalysisData, DrawingAnalysisSchema } from '../schemas/drawing-analysis.schema';
 import {
   DrawingAnalysisDetailDto,
@@ -107,15 +108,39 @@ export class DrawingAnalysisService {
       analysisStatus: 'SUCCESS',
       partType: parsedData.partType,
       material: parsedData.material,
-      stockType: parsedData.partType ? 'ROUND_BAR' : null,
-      stockDiameter: parsedData.overallDimensions?.diameter ?? null,
-      stockWidth: null,
-      stockHeight: null,
-      stockLength: parsedData.overallDimensions?.length ?? null,
+      stockType: (parsedData.stockDetail?.shape as string) || (parsedData.partType ? 'ROUND_BAR' : null),
+      stockDiameter: parsedData.stockDetail?.diameter ?? parsedData.overallDimensions?.diameter ?? null,
+      stockWidth: parsedData.stockDetail?.width ?? null,
+      stockHeight: parsedData.stockDetail?.height ?? null,
+      stockLength: parsedData.stockDetail?.length ?? parsedData.overallDimensions?.length ?? null,
       overallLength: parsedData.overallDimensions?.length ?? null,
       rawResponse: rawResponseContent,
       warnings: JSON.stringify(parsedData.warnings ?? []),
     });
+
+    // 7. material_information テーブルへ自動連携 (PHASE11)
+    try {
+      const materialName = parsedData.materialDetail?.name || parsedData.material || null;
+      const materialStandard = parsedData.materialDetail?.standard || null;
+      const shapeType = parsedData.stockDetail?.shape || 'ROUND_BAR';
+      const diameter = parsedData.stockDetail?.diameter ?? parsedData.overallDimensions?.diameter ?? null;
+      const width = parsedData.stockDetail?.width ?? null;
+      const height = parsedData.stockDetail?.height ?? null;
+      const length = parsedData.stockDetail?.length ?? null; // 推測禁止: 図面指示がある場合のみ
+
+      await materialRepository.upsertByQuoteId(drawing.quote_id, {
+        materialName,
+        materialStandard,
+        shapeType: shapeType as any,
+        diameter,
+        width,
+        height,
+        length,
+        source: 'AI',
+      });
+    } catch (matErr) {
+      console.warn('Failed to upsert material_information during AI analysis:', matErr);
+    }
 
     const createdRow = await drawingAnalysisRepository.findById(insertId);
     if (!createdRow) {
