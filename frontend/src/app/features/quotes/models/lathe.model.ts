@@ -34,3 +34,32 @@ export interface LatheCycleTimeSummary {
   operations: AutomaticLatheOperation[];
 }
 
+export interface AutomaticLatheProcessMaster {
+  id: number;
+  featureType: string;
+  processName: string;
+  calculationType: string;
+  sequenceRule: number;
+  machineType: string;
+  description: string | null;
+  defaultTimeSec: number;
+  enabled: number;
+}
+
+export interface AutomaticLatheTimeMaster {
+  id: number;
+  machineType: string;
+  materialFeedTimeSec: number;
+  toolChangeTimeSec: number;
+  pickupTimeSec: number;
+  idleTimeSec: number;
+  spindleAccDecTimeSec: number;
+  description: string | null;
+}
+
+export interface LatheMasters {
+  processes: AutomaticLatheProcessMaster[];
+  timeMaster: AutomaticLatheTimeMaster | null;
+  conditionsCount: number;
+}
+

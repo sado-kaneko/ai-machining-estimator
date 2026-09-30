@@ -728,5 +728,129 @@
   max-width: 580px;
 }
 
+/* ============================================================
+   PHASE12: NC自動旋盤計算条件サマリ スタイル
+   ============================================================ */
+.calculation-condition-card {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2b6cb0;
+  border-radius: 6px;
+  padding: 1.25rem;
 
+  .condition-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed #cbd5e0;
+    padding-bottom: 0.5rem;
 
+    h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #2b6cb0;
+      margin: 0;
+    }
+  }
+
+  .condition-card-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+}
+
+/* ============================================================
+   PHASE13: NC自動旋盤計算精度検証・補正基盤 スタイル
+   ============================================================ */
+.evaluation-section {
+  border-top: 2px dashed #e2e8f0;
+  padding-top: 1.5rem;
+}
+
+.evaluation-kpi-card {
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border: 1px solid #cbd5e0;
+  border-left: 4px solid #4a5568;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  .eval-kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+
+    .eval-kpi-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #2d3748;
+    }
+  }
+
+  .eval-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1rem;
+  }
+
+  .eval-kpi-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0.75rem;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+
+    .eval-lbl {
+      font-size: 0.75rem;
+      color: #718096;
+      margin-bottom: 0.25rem;
+    }
+
+    .eval-val {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #2d3748;
+    }
+
+    &.eval-diff-plus {
+      background: #fff5f5;
+      border-color: #feb2b2;
+      .eval-val {
+        color: #e53e3e;
+      }
+    }
+
+    &.eval-diff-minus {
+      background: #f0fff4;
+      border-color: #9ae6b4;
+      .eval-val {
+        color: #38a169;
+      }
+    }
+  }
+}
+
+.correction-factor-section {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #805ad5;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+
+  .correction-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 0.6rem 0.75rem;
+  }
+}
+
+.modal-evaluation {
+  max-width: 620px;
+}

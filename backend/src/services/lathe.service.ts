@@ -8,6 +8,7 @@ import {
   AutomaticLatheOperationDto,
   CreateLatheOperationInput,
   LatheCycleTimeSummaryDto,
+  LatheMastersDto,
   toAutomaticLatheOperationDto,
 } from '../types/lathe';
 
@@ -406,6 +407,36 @@ export class LatheService {
       totalLotTimeSec,
       operations,
     };
+  }
+
+  // ==============================================================
+  // PHASE12: マスタ取得 & 工程再生成
+  // ==============================================================
+
+  /**
+   * NC自動旋盤マスタ一覧取得
+   * GET /api/lathe-masters
+   */
+  async getLatheMasters(): Promise<LatheMastersDto> {
+    const processes = await latheRepository.findAutomaticLatheProcessMasters();
+    const timeMaster = await latheRepository.findAutomaticLatheTimeMaster('NC_AUTOMATIC_LATHE');
+    const machines = await latheRepository.findAllMachines();
+    const conditionsCount = await latheRepository.countConditions();
+
+    return {
+      processes,
+      timeMaster,
+      machines,
+      conditionsCount,
+    };
+  }
+
+  /**
+   * 工程再生成 (最新マスタに基づいて全再生成)
+   * POST /api/quotes/:id/lathe-operations/regenerate
+   */
+  async regenerateLatheOperations(quoteId: number): Promise<{ quoteId: number; operationCount: number }> {
+    return await this.generateLatheOperations(quoteId, true);
   }
 }
 

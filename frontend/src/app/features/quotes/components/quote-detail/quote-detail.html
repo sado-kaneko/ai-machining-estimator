@@ -633,6 +633,57 @@
           }
         </div>
 
+        <!-- PHASE12: NC自動旋盤計算条件サマリ表示 -->
+        <div class="calculation-condition-card mb-4">
+          <div class="condition-card-header">
+            <h4>NC自動旋盤 計算条件</h4>
+            <span class="badge badge-highlight">Calculation Engine: {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}</span>
+          </div>
+          <div class="detail-grid mt-2">
+            <div class="detail-item">
+              <span class="label">設備</span>
+              <span class="value font-bold font-highlight">{{ selectedMachine()?.machineName || 'Cincom L20' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">材料</span>
+              <span class="value font-bold">{{ materialInfo()?.materialName || activeAnalysis()?.material || 'S45C' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">素材</span>
+              <span class="value">
+                @if (materialInfo(); as mat) {
+                  {{ mat.diameter ? ('φ ' + mat.diameter + ' mm') : 'φ -' }}
+                  {{ mat.length ? (' / L ' + mat.length + ' mm') : '' }}
+                } @else if (activeAnalysis(); as an) {
+                  {{ an.stockDiameter ? ('φ ' + an.stockDiameter + ' mm') : '完成径より補完' }}
+                } @else {
+                  φ -
+                }
+              </span>
+            </div>
+            <div class="detail-item">
+              <span class="label">工程数</span>
+              <span class="value font-bold">{{ latheOperations().length }} 工程</span>
+            </div>
+          </div>
+          <div class="condition-card-actions mt-3">
+            <button
+              class="btn btn-outline-primary btn-sm"
+              (click)="handleRegenerateLatheOperations()"
+              [disabled]="isGeneratingLatheOps()"
+            >
+              {{ isGeneratingLatheOps() ? '再構築中...' : '🔄 最新マスタ基準で工程を再生成' }}
+            </button>
+            <button
+              class="btn btn-primary btn-sm"
+              (click)="handleCalculateLatheCycleTime()"
+              [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
+            >
+              {{ isCalculatingLatheCt() ? '計算実行中...' : '⚡ サイクルタイム計算を実行' }}
+            </button>
+          </div>
+        </div>
+
         <!-- 2. 最重要結果表示エリア (推定サイクルタイム強調カード) -->
         @if (latheCycleTime(); as ct) {
           <div class="result-hero-card mb-4">
@@ -860,6 +911,170 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- PHASE13: NC自動旋盤計算精度検証・Excel比較 & 補正基盤           -->
+        <!-- ============================================================== -->
+        <div class="evaluation-section mt-4">
+          <div class="section-header-flex">
+            <div>
+              <h3>NC自動旋盤 計算精度検証 & Excel比較 (PHASE13)</h3>
+              <p class="section-subtext">既存Excel見積ツール（NC_見積支援【R21】）および実加工時間との差異を検証・蓄積します。</p>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" (click)="openEvaluationModal()">
+              ＋ 精度評価・Excel比較を登録
+            </button>
+          </div>
+
+          @if (evaluationSuccessMessage()) {
+            <div class="alert alert-success mt-2 mb-2">{{ evaluationSuccessMessage() }}</div>
+          }
+          @if (evaluationErrorMessage()) {
+            <div class="alert alert-error mt-2 mb-2">{{ evaluationErrorMessage() }}</div>
+          }
+
+          <!-- 最新精度評価カード (指示書14節) -->
+          @if (evaluations().length > 0) {
+            @let latestEval = evaluations()[0];
+            <div class="evaluation-kpi-card mb-4">
+              <div class="eval-kpi-header">
+                <span class="eval-kpi-title">最新計算精度評価結果</span>
+                <span class="badge badge-type">{{ latestEval.machineName }}</span>
+              </div>
+              <div class="eval-kpi-grid">
+                <div class="eval-kpi-item">
+                  <span class="eval-lbl">Web計算CT</span>
+                  <span class="eval-val font-highlight">{{ latestEval.calculatedCycleTimeSec }} 秒</span>
+                </div>
+                <div class="eval-kpi-item">
+                  <span class="eval-lbl">Excel CT (R21)</span>
+                  <span class="eval-val">{{ latestEval.excelCycleTimeSec !== null ? (latestEval.excelCycleTimeSec + ' 秒') : '-' }}</span>
+                </div>
+                <div
+                  class="eval-kpi-item"
+                  [class.eval-diff-plus]="(latestEval.excelDifferenceRate || 0) > 0"
+                  [class.eval-diff-minus]="(latestEval.excelDifferenceRate || 0) <= 0"
+                >
+                  <span class="eval-lbl">Excel差異率</span>
+                  <span class="eval-val font-bold">
+                    @if (latestEval.excelDifferenceRate !== null) {
+                      {{ latestEval.excelDifferenceRate > 0 ? ('+' + latestEval.excelDifferenceRate) : latestEval.excelDifferenceRate }} %
+                    } @else {
+                      -
+                    }
+                  </span>
+                </div>
+                <div class="eval-kpi-item">
+                  <span class="eval-lbl">実績CT</span>
+                  <span class="eval-val font-bold">{{ latestEval.actualCycleTimeSec !== null ? (latestEval.actualCycleTimeSec + ' 秒') : '-' }}</span>
+                </div>
+                <div
+                  class="eval-kpi-item"
+                  [class.eval-diff-plus]="(latestEval.actualDifferenceRate || 0) > 0"
+                  [class.eval-diff-minus]="(latestEval.actualDifferenceRate || 0) <= 0"
+                >
+                  <span class="eval-lbl">実績差異率</span>
+                  <span class="eval-val font-bold">
+                    @if (latestEval.actualDifferenceRate !== null) {
+                      {{ latestEval.actualDifferenceRate > 0 ? ('+' + latestEval.actualDifferenceRate) : latestEval.actualDifferenceRate }} %
+                    } @else {
+                      -
+                    }
+                  </span>
+                </div>
+                <div class="eval-kpi-item">
+                  <span class="eval-lbl">差異分類要因</span>
+                  <span class="eval-val">
+                    <span class="badge badge-type">{{ latestEval.differenceCategory }}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- 評価履歴テーブル (指示書15節) -->
+          <div class="evaluation-history-table mb-4">
+            <div class="section-header-flex">
+              <h4>精度評価・比較履歴 ({{ evaluations().length }}件)</h4>
+            </div>
+
+            @if (isLoadingEvaluations()) {
+              <div class="loading">評価データを読み込み中...</div>
+            } @else if (evaluations().length === 0) {
+              <div class="no-drawings">
+                <p>まだ精度評価データが登録されていません。「＋ 精度評価・Excel比較を登録」ボタンからExcel CTや差異要因を登録してください。</p>
+              </div>
+            } @else {
+              <div class="drawings-table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">No</th>
+                      <th style="width: 100px;">評価日</th>
+                      <th>設備</th>
+                      <th style="width: 95px;" class="text-right">Web CT</th>
+                      <th style="width: 95px;" class="text-right">Excel CT</th>
+                      <th style="width: 100px;" class="text-right">Excel差異</th>
+                      <th style="width: 95px;" class="text-right">実績CT</th>
+                      <th style="width: 100px;" class="text-right">実績差異</th>
+                      <th style="width: 120px;">要因分類</th>
+                      <th>備考 / 要因メモ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (ev of evaluations(); track ev.id; let i = $index) {
+                      <tr>
+                        <td class="text-center font-bold">{{ i + 1 }}</td>
+                        <td>{{ ev.createdAt | date: 'yyyy/MM/dd' }}</td>
+                        <td>{{ ev.machineName }}</td>
+                        <td class="text-right font-highlight">{{ ev.calculatedCycleTimeSec }} 秒</td>
+                        <td class="text-right">{{ ev.excelCycleTimeSec !== null ? (ev.excelCycleTimeSec + ' 秒') : '-' }}</td>
+                        <td class="text-right font-bold" [class.text-danger]="(ev.excelDifferenceRate || 0) > 0" [class.text-success]="(ev.excelDifferenceRate || 0) <= 0">
+                          @if (ev.excelDifferenceRate !== null) {
+                            {{ ev.excelDifferenceRate > 0 ? ('+' + ev.excelDifferenceRate) : ev.excelDifferenceRate }}%
+                          } @else {
+                            -
+                          }
+                        </td>
+                        <td class="text-right">{{ ev.actualCycleTimeSec !== null ? (ev.actualCycleTimeSec + ' 秒') : '-' }}</td>
+                        <td class="text-right font-bold" [class.text-danger]="(ev.actualDifferenceRate || 0) > 0" [class.text-success]="(ev.actualDifferenceRate || 0) <= 0">
+                          @if (ev.actualDifferenceRate !== null) {
+                            {{ ev.actualDifferenceRate > 0 ? ('+' + ev.actualDifferenceRate) : ev.actualDifferenceRate }}%
+                          } @else {
+                            -
+                          }
+                        </td>
+                        <td><span class="badge badge-type">{{ ev.differenceCategory }}</span></td>
+                        <td class="notes-cell">{{ ev.notes || '-' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+
+          <!-- 補正係数蓄積サマリ (指示書8〜11節) -->
+          @if (correctionFactors().length > 0) {
+            <div class="correction-factor-section">
+              <div class="section-header-flex">
+                <h4>設備・材料別 補正係数学習データ ({{ correctionFactors().length }}件)</h4>
+                <small class="text-muted">※次フェーズ以降のEngine自動補正に活用されます（現フェーズは蓄積のみ）</small>
+              </div>
+              <div class="detail-grid">
+                @for (cf of correctionFactors(); track cf.id) {
+                  <div class="detail-item correction-card">
+                    <span class="label">{{ cf.machineName }} &times; {{ cf.materialName }}</span>
+                    <span class="value font-bold font-highlight">
+                      係数: &times;{{ cf.factor }}
+                      <small class="text-muted">({{ cf.sampleCount }}件蓄積)</small>
+                    </span>
+                  </div>
+                }
+              </div>
             </div>
           }
         </div>
@@ -1272,6 +1487,109 @@
               [disabled]="isSavingMaterial()"
             >
               {{ isSavingMaterial() ? '保存中...' : '素材情報を保存' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- 精度評価・Excel比較登録モーダル (PHASE13) -->
+    @if (showEvaluationModal()) {
+      <div class="modal-backdrop">
+        <div class="modal-content modal-evaluation">
+          <div class="modal-header">
+            <h3>NC自動旋盤 計算精度評価 & Excel比較の登録</h3>
+            <button class="modal-close" (click)="closeEvaluationModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            @if (evaluationErrorMessage()) {
+              <div class="alert alert-error">{{ evaluationErrorMessage() }}</div>
+            }
+
+            <p class="modal-desc">
+              Web計算値と既存Excel見積ツール（NC_見積支援【R21】）または現場加工実績値との差異・要因を登録します。
+            </p>
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>対象加工機</label>
+                <select [(ngModel)]="evaluationForm.machineId" class="form-control">
+                  <option [ngValue]="null">（未指定）</option>
+                  @for (m of machines(); track m.id) {
+                    <option [ngValue]="m.id">{{ m.machineName }} ({{ m.maker || '-' }})</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Web計算サイクルタイム (秒)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="evaluationForm.calculatedCycleTimeSec"
+                  class="form-control"
+                  step="0.001"
+                  placeholder="未入力時は最新計算結果を採用"
+                />
+              </div>
+            </div>
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group highlight-box">
+                <label>Excel CT (秒) 【NC_見積支援 R21】</label>
+                <input
+                  type="number"
+                  [(ngModel)]="evaluationForm.excelCycleTimeSec"
+                  class="form-control font-bold"
+                  min="0"
+                  step="0.01"
+                  placeholder="例: 52.5"
+                />
+                <small class="help-text">Excelツールで同一条件算出したサイクルタイム</small>
+              </div>
+
+              <div class="form-group">
+                <label>実績サイクルタイム (秒)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="evaluationForm.actualCycleTimeSec"
+                  class="form-control"
+                  min="0"
+                  step="0.01"
+                  placeholder="例: 55.0 (任意)"
+                />
+                <small class="help-text">現場の加工実績1個あたり秒（任意）</small>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>差異分類 (要因カテゴリ) *</label>
+              <select [(ngModel)]="evaluationForm.differenceCategory" class="form-control">
+                <option value="CUTTING_CONDITION">CUTTING_CONDITION (切削条件差異: Vc・送り・切込み差)</option>
+                <option value="PROCESS_RULE">PROCESS_RULE (工程判断差異: 工程追加・削除・方法変更)</option>
+                <option value="NON_CUTTING_TIME">NON_CUTTING_TIME (非切削時間差異: 材料送り・工具交換等)</option>
+                <option value="SETUP_TIME">SETUP_TIME (段取り差異: 初品調整・条件調整)</option>
+                <option value="OTHER">OTHER (その他)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>備考 / 差異詳細メモ</label>
+              <textarea
+                [(ngModel)]="evaluationForm.notes"
+                class="form-control"
+                rows="3"
+                placeholder="例: Excel側と材料送り時間のマスタ設定に3秒の差あり。荒引き工程の送りFを0.08→0.05に変更したため。"
+              ></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="closeEvaluationModal()">キャンセル</button>
+            <button
+              class="btn btn-primary"
+              (click)="handleSaveEvaluation()"
+              [disabled]="isSubmittingEvaluation()"
+            >
+              {{ isSubmittingEvaluation() ? '登録中...' : '精度評価を登録する' }}
             </button>
           </div>
         </div>

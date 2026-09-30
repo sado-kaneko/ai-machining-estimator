@@ -188,3 +188,41 @@ export function toAutomaticLatheOperationDto(
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : (row.updated_at ? String(row.updated_at) : null),
   };
 }
+
+// ==============================================================
+// PHASE12: 高度化マスタ型定義
+// ==============================================================
+
+export interface AutomaticLatheProcessMasterRow {
+  id: number;
+  feature_type: string;
+  process_name: string;
+  calculation_type: string;
+  sequence_rule: number;
+  machine_type: string;
+  description: string | null;
+  default_time_sec: number;
+  enabled: number;
+  created_at: Date;
+  updated_at: Date | null;
+}
+
+export interface AutomaticLatheTimeMasterRow {
+  id: number;
+  machine_type: string;
+  material_feed_time_sec: number;
+  tool_change_time_sec: number;
+  pickup_time_sec: number;
+  idle_time_sec: number;
+  spindle_acc_dec_time_sec: number;
+  description: string | null;
+  created_at: Date;
+  updated_at: Date | null;
+}
+
+export interface LatheMastersDto {
+  processes: AutomaticLatheProcessMasterRow[];
+  timeMaster: AutomaticLatheTimeMasterRow | null;
+  machines: MachineMasterRow[];
+  conditionsCount: number;
+}

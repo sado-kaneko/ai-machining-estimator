@@ -52,4 +52,25 @@ export class LatheService {
       `${this.baseUrl}/quotes/${quoteId}/lathe-cycle-time`
     );
   }
+
+  /**
+   * 最新マスタ基準でNC自動旋盤工程を再生成 (PHASE12)
+   * POST /api/quotes/:id/lathe-operations/regenerate
+   */
+  regenerateLatheOperations(quoteId: number): Observable<{ quoteId: number; operationCount: number }> {
+    return this.http.post<{ quoteId: number; operationCount: number }>(
+      `${this.baseUrl}/quotes/${quoteId}/lathe-operations/regenerate`,
+      {}
+    );
+  }
+
+  /**
+   * NC自動旋盤マスタ一覧取得 (PHASE12)
+   * GET /api/lathe-masters
+   */
+  getLatheMasters(): Observable<any> {
+    return this.http.get<any>(
+      `${this.baseUrl}/lathe-masters`
+    );
+  }
 }

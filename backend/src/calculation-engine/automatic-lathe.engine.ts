@@ -1,4 +1,5 @@
 import { latheRepository } from '../repositories/lathe.repository';
+import { materialRepository } from '../repositories/material.repository';
 import { toAutomaticLatheOperationDto } from '../types/lathe';
 import {
   CalculationEngineInput,
@@ -17,15 +18,33 @@ export class AutomaticLatheEngine implements ICalculationEngine {
       throw new Error('NO_OPERATION_DATA');
     }
 
-    // 非切削時間マスタ取得
-    const machineTimes = await latheRepository.findMachineTimes('NC_AUTOMATIC_LATHE');
-    const timeMap = new Map<string, number>();
-    machineTimes.forEach(t => timeMap.set(t.parameter_name, Number(t.time_sec)));
+    // 素材情報取得 (PHASE11/12)
+    const materialInfo = await materialRepository.findByQuoteId(quoteId);
+    const stockDiameter = materialInfo?.diameter ? Number(materialInfo.diameter) : null;
 
-    const toolChangeTime = timeMap.get('TOOL_CHANGE') ?? 1.5;
-    const idlingTime = timeMap.get('IDLING') ?? 2.0;
-    const materialFeedTime = timeMap.get('MATERIAL_FEED') ?? 2.5;
-    const partPickupTime = timeMap.get('PART_PICKUP') ?? 2.0;
+    // 非切削時間マスタ取得 (PHASE12 automatic_lathe_time_master 優先、無ければ既存テーブル)
+    const timeMaster = await latheRepository.findAutomaticLatheTimeMaster('NC_AUTOMATIC_LATHE');
+    let toolChangeTime = 1.5;
+    let idlingTime = 2.0;
+    let materialFeedTime = 2.5;
+    let partPickupTime = 2.0;
+    let spindleAccDecTime = 1.0;
+
+    if (timeMaster) {
+      toolChangeTime = Number(timeMaster.tool_change_time_sec);
+      idlingTime = Number(timeMaster.idle_time_sec);
+      materialFeedTime = Number(timeMaster.material_feed_time_sec);
+      partPickupTime = Number(timeMaster.pickup_time_sec);
+      spindleAccDecTime = Number(timeMaster.spindle_acc_dec_time_sec);
+    } else {
+      const machineTimes = await latheRepository.findMachineTimes('NC_AUTOMATIC_LATHE');
+      const timeMap = new Map<string, number>();
+      machineTimes.forEach(t => timeMap.set(t.parameter_name, Number(t.time_sec)));
+      toolChangeTime = timeMap.get('TOOL_CHANGE') ?? 1.5;
+      idlingTime = timeMap.get('IDLING') ?? 2.0;
+      materialFeedTime = timeMap.get('MATERIAL_FEED') ?? 2.5;
+      partPickupTime = timeMap.get('PART_PICKUP') ?? 2.0;
+    }
 
     let totalCuttingSec = 0;
     let totalNonCuttingSec = 0;
@@ -64,8 +83,9 @@ export class AutomaticLatheEngine implements ICalculationEngine {
           break;
 
         case 'FEED_FACE':
-          // 端面: (D / 2) / F * 60
-          cuttingTimeSec = ((diameter / 2) / feedRate) * 60;
+          // 端面: (D / 2) / F * 60 (素材径優先)
+          const faceDiam = (stockDiameter && stockDiameter > 0) ? stockDiameter : diameter;
+          cuttingTimeSec = ((faceDiam / 2) / feedRate) * 60;
           break;
 
         case 'FEED_DRILL':
@@ -95,8 +115,9 @@ export class AutomaticLatheEngine implements ICalculationEngine {
           break;
 
         case 'CUTOFF':
-          // 突切り: (D / 2) / F * 60 + 1秒
-          cuttingTimeSec = ((diameter / 2) / feedRate) * 60 + 1.0;
+          // 突切り: (D / 2) / F * 60 + 1秒 (素材径優先)
+          const cutoffDiam = (stockDiameter && stockDiameter > 0) ? stockDiameter : diameter;
+          cuttingTimeSec = ((cutoffDiam / 2) / feedRate) * 60 + 1.0;
           break;
 
         case 'BACK_MACHINING':

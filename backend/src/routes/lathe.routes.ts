@@ -27,4 +27,16 @@ router.get(
   latheController.getCycleTime.bind(latheController)
 );
 
+// PHASE12: NC自動旋盤マスタ取得: GET /api/lathe-masters
+router.get(
+  '/lathe-masters',
+  latheController.getMasters.bind(latheController)
+);
+
+// PHASE12: 工程再生成: POST /api/quotes/:id/lathe-operations/regenerate
+router.post(
+  '/quotes/:id/lathe-operations/regenerate',
+  latheController.regenerateOperations.bind(latheController)
+);
+
 export default router;

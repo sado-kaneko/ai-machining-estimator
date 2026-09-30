@@ -28,6 +28,13 @@ import {
   SaveMaterialRequest,
   ShapeType,
 } from '../../models/material.model';
+import { CycleTimeEvaluationService } from '../../services/cycle-time-evaluation.service';
+import {
+  CreateCycleTimeEvaluationRequest,
+  CycleTimeEvaluation,
+  DifferenceCategory,
+  LatheCorrectionFactor,
+} from '../../models/cycle-time-evaluation.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -48,11 +55,29 @@ export class QuoteDetailComponent implements OnInit {
   private readonly calculationService = inject(CalculationService);
   private readonly actualCycleTimeService = inject(ActualCycleTimeService);
   private readonly materialService = inject(MaterialService);
+  private readonly cycleTimeEvaluationService = inject(CycleTimeEvaluationService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
   isLoading = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
+
+  // 精度評価・Excel比較関連シグナル (PHASE13)
+  evaluations = signal<CycleTimeEvaluation[]>([]);
+  correctionFactors = signal<LatheCorrectionFactor[]>([]);
+  isLoadingEvaluations = signal<boolean>(false);
+  isSubmittingEvaluation = signal<boolean>(false);
+  evaluationErrorMessage = signal<string | null>(null);
+  evaluationSuccessMessage = signal<string | null>(null);
+  showEvaluationModal = signal<boolean>(false);
+  evaluationForm: CreateCycleTimeEvaluationRequest = {
+    machineId: null,
+    calculatedCycleTimeSec: null,
+    excelCycleTimeSec: null,
+    actualCycleTimeSec: null,
+    differenceCategory: 'OTHER',
+    notes: '',
+  };
 
   // 素材情報関連シグナル (PHASE11)
   materialInfo = signal<MaterialInformation | null>(null);
@@ -184,6 +209,8 @@ export class QuoteDetailComponent implements OnInit {
     this.loadActualCycleTimes(id);
     this.loadComparison(id);
     this.loadMaterial(id);
+    this.loadEvaluations(id);
+    this.loadCorrectionFactors();
   }
 
   loadQuote(id: number): void {
@@ -640,6 +667,34 @@ export class QuoteDetailComponent implements OnInit {
     });
   }
 
+  handleRegenerateLatheOperations(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    if (!confirm('最新の工程判断マスタ・素材条件に基づいてNC自動旋盤工程を再構築しますか？')) {
+      return;
+    }
+
+    this.isGeneratingLatheOps.set(true);
+    this.latheErrorMessage.set(null);
+    this.latheSuccessMessage.set(null);
+
+    this.latheService.regenerateLatheOperations(q.id).subscribe({
+      next: (res) => {
+        this.isGeneratingLatheOps.set(false);
+        this.latheSuccessMessage.set(`最新マスタ基準でNC自動旋盤工程（${res.operationCount}工程）を再構築しました。`);
+        this.loadLatheOperations(q.id);
+        // 自動でサイクルタイム計算も再実行して最新化
+        this.handleCalculateLatheCycleTime();
+      },
+      error: (err) => {
+        this.isGeneratingLatheOps.set(false);
+        const msg = err?.error?.error?.message || '自動旋盤工程の再構築に失敗しました。';
+        this.latheErrorMessage.set(msg);
+      },
+    });
+  }
+
   loadMachinesAndSelection(quoteId: number): void {
     this.calculationService.getMachines().subscribe({
       next: (res) => {
@@ -910,6 +965,80 @@ export class QuoteDetailComponent implements OnInit {
         this.isSavingMaterial.set(false);
         const msg = err?.error?.error?.message || '素材情報の保存に失敗しました。';
         this.materialErrorMessage.set(msg);
+      },
+    });
+  }
+
+  // ==============================================================
+  // PHASE13: サイクルタイム精度検証・補正メソッド
+  // ==============================================================
+
+  loadEvaluations(quoteId: number): void {
+    this.isLoadingEvaluations.set(true);
+    this.cycleTimeEvaluationService.getEvaluationsByQuoteId(quoteId).subscribe({
+      next: (res) => {
+        this.evaluations.set(res.items);
+        this.isLoadingEvaluations.set(false);
+      },
+      error: () => {
+        this.evaluations.set([]);
+        this.isLoadingEvaluations.set(false);
+      },
+    });
+  }
+
+  loadCorrectionFactors(): void {
+    this.cycleTimeEvaluationService.getCorrectionFactors().subscribe({
+      next: (res) => {
+        this.correctionFactors.set(res.items);
+      },
+      error: () => {
+        this.correctionFactors.set([]);
+      },
+    });
+  }
+
+  openEvaluationModal(): void {
+    const ct = this.latheCycleTime();
+    const selMachine = this.selectedMachine();
+
+    this.evaluationForm = {
+      machineId: selMachine?.id ?? null,
+      calculatedCycleTimeSec: ct?.totalCycleTimeSec ?? null,
+      excelCycleTimeSec: null,
+      actualCycleTimeSec: null,
+      differenceCategory: 'OTHER',
+      notes: '',
+    };
+    this.evaluationErrorMessage.set(null);
+    this.showEvaluationModal.set(true);
+  }
+
+  closeEvaluationModal(): void {
+    this.showEvaluationModal.set(false);
+    this.evaluationErrorMessage.set(null);
+  }
+
+  handleSaveEvaluation(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    this.isSubmittingEvaluation.set(true);
+    this.evaluationErrorMessage.set(null);
+
+    this.cycleTimeEvaluationService.createEvaluation(q.id, this.evaluationForm).subscribe({
+      next: () => {
+        this.isSubmittingEvaluation.set(false);
+        this.showEvaluationModal.set(false);
+        this.evaluationSuccessMessage.set('計算精度評価・Excel比較データを登録しました。');
+        setTimeout(() => this.evaluationSuccessMessage.set(null), 3500);
+        this.loadEvaluations(q.id);
+        this.loadCorrectionFactors();
+      },
+      error: (err) => {
+        this.isSubmittingEvaluation.set(false);
+        const msg = err?.error?.error?.message || '精度評価データの登録に失敗しました。';
+        this.evaluationErrorMessage.set(msg);
       },
     });
   }

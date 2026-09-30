@@ -2,6 +2,8 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { pool } from '../config/database';
 import {
   AutomaticLatheOperationRow,
+  AutomaticLatheProcessMasterRow,
+  AutomaticLatheTimeMasterRow,
   CreateLatheOperationInput,
   LatheConditionMasterRow,
   LatheProcessMasterRow,
@@ -259,6 +261,41 @@ export class LatheRepository {
   async count(): Promise<number> {
     const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT COUNT(*) as count FROM automatic_lathe_operations'
+    );
+    return Number(rows[0].count);
+  }
+
+  // ==============================================================
+  // PHASE12: 高度化マスタ取得メソッド
+  // ==============================================================
+
+  /**
+   * 自動旋盤工程判断マスタ全件取得 (順序昇順)
+   */
+  async findAutomaticLatheProcessMasters(): Promise<AutomaticLatheProcessMasterRow[]> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM automatic_lathe_process_master WHERE enabled = 1 ORDER BY sequence_rule ASC'
+    );
+    return rows as AutomaticLatheProcessMasterRow[];
+  }
+
+  /**
+   * 自動旋盤非切削時間マスタ取得
+   */
+  async findAutomaticLatheTimeMaster(machineType = 'NC_AUTOMATIC_LATHE'): Promise<AutomaticLatheTimeMasterRow | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM automatic_lathe_time_master WHERE machine_type = ? LIMIT 1',
+      [machineType]
+    );
+    return rows.length > 0 ? (rows[0] as AutomaticLatheTimeMasterRow) : null;
+  }
+
+  /**
+   * 切削条件件数カウント
+   */
+  async countConditions(): Promise<number> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT COUNT(*) as count FROM lathe_condition_master WHERE enabled = 1'
     );
     return Number(rows[0].count);
   }

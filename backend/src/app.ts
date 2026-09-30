@@ -11,6 +11,7 @@ import cycleTimeRoutes from './routes/cycle-time.routes';
 import latheRoutes from './routes/lathe.routes';
 import actualCycleTimeRoutes from './routes/actual-cycle-time.routes';
 import materialRoutes from './routes/material.routes';
+import cycleTimeEvaluationRoutes from './routes/cycle-time-evaluation.routes';
 
 const app = express();
 
@@ -45,6 +46,9 @@ app.use('/api', actualCycleTimeRoutes);
 
 // 素材情報ルーターのマウント (/api/quotes/:id/material, /api/materials/:id)
 app.use('/api', materialRoutes);
+
+// PHASE13: サイクルタイム精度評価・補正ルーターのマウント (/api/quotes/:id/cycle-time-evaluations, /api/lathe-correction-factors)
+app.use('/api', cycleTimeEvaluationRoutes);
 
 export default app;
 

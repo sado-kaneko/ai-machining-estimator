@@ -169,6 +169,66 @@ export class LatheController {
       });
     }
   }
+
+  // ==============================================================
+  // PHASE12: マスタ取得 & 工程再生成ハンドラー
+  // ==============================================================
+
+  /**
+   * GET /api/lathe-masters
+   * NC自動旋盤マスタ一覧取得
+   */
+  async getMasters(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await latheService.getLatheMasters();
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      res.status(500).json({
+        error: { code: 'FETCH_MASTERS_FAILED', message: '自動旋盤マスタの取得に失敗しました。' },
+      });
+    }
+  }
+
+  /**
+   * POST /api/quotes/:id/lathe-operations/regenerate
+   * 最新マスタ基準で工程候補を強制再生成
+   */
+  async regenerateOperations(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const quoteId = parseInt(rawId, 10);
+
+      if (isNaN(quoteId) || quoteId <= 0) {
+        res.status(400).json({
+          error: { code: 'INVALID_ID', message: '有効な見積IDを指定してください。' },
+        });
+        return;
+      }
+
+      const result = await latheService.regenerateLatheOperations(quoteId);
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+
+      if (message === 'QUOTE_NOT_FOUND') {
+        res.status(404).json({
+          error: { code: 'QUOTE_NOT_FOUND', message: '指定された見積案件が存在しません。' },
+        });
+        return;
+      }
+
+      if (message === 'NO_CONFIRMED_FEATURES' || message === 'NO_VALID_OPERATIONS_GENERATED') {
+        res.status(400).json({
+          error: { code: 'NO_CONFIRMED_FEATURES', message: '有効な加工Featureが存在しません。' },
+        });
+        return;
+      }
+
+      res.status(500).json({
+        error: { code: 'REGENERATE_FAILED', message: '自動旋盤工程の再生成に失敗しました。' },
+      });
+    }
+  }
 }
 
 export const latheController = new LatheController();
