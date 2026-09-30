@@ -916,6 +916,137 @@
         </div>
 
         <!-- ============================================================== -->
+        <!-- PHASE14: 既存生産管理システム (sadoa) 過去加工実績連携         -->
+        <!-- ============================================================== -->
+        <div class="production-actual-section mt-4 mb-4">
+          <div class="section-header-flex">
+            <div>
+              <h3>既存生産管理 (sadoa) 過去加工実績連携 (PHASE14)</h3>
+              <p class="section-subtext">社内生産管理システムに蓄積された実加工時間（図番・設備・数量・担当者）を連携し、見積精度の検証に活用します。</p>
+            </div>
+            <div class="header-actions">
+              <button
+                class="btn btn-outline-primary btn-sm"
+                (click)="handleSyncProduction()"
+                [disabled]="isSyncingProduction()"
+              >
+                {{ isSyncingProduction() ? 'sadoa同期中...' : '🔄 sadoa実績データを同期' }}
+              </button>
+            </div>
+          </div>
+
+          @if (productionSyncMessage()) {
+            <div class="alert alert-success mt-2 mb-2">{{ productionSyncMessage() }}</div>
+          }
+          @if (productionSyncError()) {
+            <div class="alert alert-error mt-2 mb-2">{{ productionSyncError() }}</div>
+          }
+
+          <!-- 過去実績ハイライトカード (指示書12節) -->
+          @if (productionActualRecords().length > 0) {
+            @let topActual = productionActualRecords()[0];
+            <div class="production-kpi-card mb-3">
+              <div class="prod-kpi-header">
+                <span class="prod-kpi-title">過去加工実績 (直近ロット)</span>
+                <span class="badge badge-engine">{{ topActual.machineName || '自動旋盤' }}</span>
+              </div>
+              <div class="prod-kpi-grid">
+                <div class="prod-kpi-item">
+                  <span class="prod-lbl">図番</span>
+                  <span class="prod-val font-bold">{{ topActual.buban || quote()?.partNo || '-' }}</span>
+                </div>
+                <div class="prod-kpi-item">
+                  <span class="prod-lbl">設備</span>
+                  <span class="prod-val font-highlight">{{ topActual.machineName || '-' }}</span>
+                </div>
+                <div class="prod-kpi-item">
+                  <span class="prod-lbl">実績CT (1個あたり)</span>
+                  <span class="prod-val font-bold">{{ topActual.cycleTimeSec !== null ? (topActual.cycleTimeSec + ' 秒') : '-' }}</span>
+                </div>
+                <div class="prod-kpi-item">
+                  <span class="prod-lbl">加工数量</span>
+                  <span class="prod-val">{{ topActual.quantity }} 個</span>
+                </div>
+                <div class="prod-kpi-item">
+                  <span class="prod-lbl">総加工時間</span>
+                  <span class="prod-val text-muted">{{ topActual.totalTimeSec > 0 ? (topActual.totalTimeSec + ' 秒') : '-' }}</span>
+                </div>
+                <div class="prod-kpi-item">
+                  <span class="prod-lbl">担当者 / 加工日</span>
+                  <span class="prod-val text-muted">{{ topActual.operatorName || '-' }} ({{ topActual.startDatetime ? (topActual.startDatetime | date: 'yyyy/MM/dd') : '-' }})</span>
+                </div>
+              </div>
+              <div class="prod-card-footer mt-2">
+                <button
+                  class="btn btn-outline-primary btn-sm"
+                  (click)="applyProductionActualToEvaluation(topActual)"
+                >
+                  この実績CT（{{ topActual.cycleTimeSec }}秒）を精度評価に引用 &rarr;
+                </button>
+              </div>
+            </div>
+
+            <!-- 過去実績一覧テーブル -->
+            <div class="drawings-table-wrapper mb-4">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;">No</th>
+                    <th>図番 / 品名</th>
+                    <th style="width: 100px;">加工機械</th>
+                    <th style="width: 90px;">工程名</th>
+                    <th style="width: 110px;" class="text-right">実績CT</th>
+                    <th style="width: 90px;" class="text-right">数量</th>
+                    <th style="width: 110px;" class="text-right">総加工時間</th>
+                    <th style="width: 100px;">担当者</th>
+                    <th style="width: 100px;">加工開始日</th>
+                    <th style="width: 90px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (rec of productionActualRecords(); track rec.id; let idx = $index) {
+                    <tr>
+                      <td class="text-center font-bold">{{ idx + 1 }}</td>
+                      <td>
+                        <strong>{{ rec.buban || '-' }}</strong>
+                        @if (rec.hinmei) {
+                          <br><small class="text-muted">{{ rec.hinmei }}</small>
+                        }
+                      </td>
+                      <td>{{ rec.machineName || '-' }}</td>
+                      <td>{{ rec.processName || '-' }}</td>
+                      <td class="text-right font-highlight font-bold">
+                        {{ rec.cycleTimeSec !== null ? (rec.cycleTimeSec + ' 秒') : '-' }}
+                      </td>
+                      <td class="text-right font-bold">{{ rec.quantity }} 個</td>
+                      <td class="text-right text-muted">{{ rec.totalTimeSec > 0 ? (rec.totalTimeSec + ' 秒') : '-' }}</td>
+                      <td>{{ rec.operatorName || '-' }}</td>
+                      <td>{{ rec.startDatetime ? (rec.startDatetime | date: 'yyyy/MM/dd') : '-' }}</td>
+                      <td>
+                        <button
+                          class="btn btn-primary btn-sm"
+                          (click)="applyProductionActualToEvaluation(rec)"
+                          title="この実績値を下の精度評価モーダルに自動転記します"
+                        >
+                          引用
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="no-drawings mb-4">
+              <p>
+                本案件（図番: <strong>{{ quote()?.partNo || '未登録' }}</strong>）に一致する過去の生産実績はまだ連携されていません。
+                上部の「🔄 sadoa実績データを同期」ボタンをクリックして最新の実績を取り込んでください。
+              </p>
+            </div>
+          }
+        </div>
+
+        <!-- ============================================================== -->
         <!-- PHASE13: NC自動旋盤計算精度検証・Excel比較 & 補正基盤           -->
         <!-- ============================================================== -->
         <div class="evaluation-section mt-4">

@@ -35,6 +35,8 @@ import {
   DifferenceCategory,
   LatheCorrectionFactor,
 } from '../../models/cycle-time-evaluation.model';
+import { ProductionActualService } from '../../services/production-actual.service';
+import { ProductionActualRecord } from '../../models/production-actual.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -56,11 +58,19 @@ export class QuoteDetailComponent implements OnInit {
   private readonly actualCycleTimeService = inject(ActualCycleTimeService);
   private readonly materialService = inject(MaterialService);
   private readonly cycleTimeEvaluationService = inject(CycleTimeEvaluationService);
+  private readonly productionActualService = inject(ProductionActualService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
   isLoading = signal<boolean>(false);
   errorMessage = signal<string | null>(null);
+
+  // 生産実績DB (sadoa) 連携関連シグナル (PHASE14)
+  productionActualRecords = signal<ProductionActualRecord[]>([]);
+  isLoadingProductionActual = signal<boolean>(false);
+  isSyncingProduction = signal<boolean>(false);
+  productionSyncMessage = signal<string | null>(null);
+  productionSyncError = signal<string | null>(null);
 
   // 精度評価・Excel比較関連シグナル (PHASE13)
   evaluations = signal<CycleTimeEvaluation[]>([]);
@@ -211,6 +221,7 @@ export class QuoteDetailComponent implements OnInit {
     this.loadMaterial(id);
     this.loadEvaluations(id);
     this.loadCorrectionFactors();
+    this.loadProductionActual(id);
   }
 
   loadQuote(id: number): void {
@@ -1041,5 +1052,67 @@ export class QuoteDetailComponent implements OnInit {
         this.evaluationErrorMessage.set(msg);
       },
     });
+  }
+
+  // ==============================================================
+  // PHASE14: 生産実績DB連携 (sadoa) メソッド
+  // ==============================================================
+
+  loadProductionActual(quoteId: number): void {
+    this.isLoadingProductionActual.set(true);
+    this.productionActualService.getForQuote(quoteId).subscribe({
+      next: (res) => {
+        this.productionActualRecords.set(res.items);
+        this.isLoadingProductionActual.set(false);
+      },
+      error: () => {
+        this.productionActualRecords.set([]);
+        this.isLoadingProductionActual.set(false);
+      },
+    });
+  }
+
+  handleSyncProduction(): void {
+    const q = this.quote();
+    this.isSyncingProduction.set(true);
+    this.productionSyncMessage.set(null);
+    this.productionSyncError.set(null);
+
+    this.productionActualService.syncProduction().subscribe({
+      next: (res) => {
+        this.isSyncingProduction.set(false);
+        this.productionSyncMessage.set(res.message);
+        setTimeout(() => this.productionSyncMessage.set(null), 5000);
+        if (q) {
+          this.loadProductionActual(q.id);
+        }
+      },
+      error: (err) => {
+        this.isSyncingProduction.set(false);
+        const msg = err?.error?.error?.message || '生産管理DB(sadoa)との同期に失敗しました。';
+        this.productionSyncError.set(msg);
+      },
+    });
+  }
+
+  /**
+   * 過去加工実績を計算精度評価モーダルに自動転記して開く
+   */
+  applyProductionActualToEvaluation(record: ProductionActualRecord): void {
+    this.openEvaluationModal();
+    if (record.cycleTimeSec !== null) {
+      this.evaluationForm.actualCycleTimeSec = record.cycleTimeSec;
+    }
+    if (record.machineName) {
+      // machineNameから適合するマシンを探索
+      const matched = this.machines().find(
+        (m) => record.machineName!.includes(m.machineName) || m.machineName.includes(record.machineName!)
+      );
+      if (matched) {
+        this.evaluationForm.machineId = matched.id;
+      }
+    }
+    const notePrefix = `[sadoa同期実績 図番:${record.buban || '-'} 担当:${record.operatorName || '-'} 数量:${record.quantity}個] `;
+    this.evaluationForm.notes = notePrefix + (this.evaluationForm.notes || '');
   }
 }

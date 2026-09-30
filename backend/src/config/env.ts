@@ -16,6 +16,14 @@ export interface EnvConfig {
     password: string;
     connectionLimit: number;
   };
+  sadoaDb: {
+    host: string;
+    port: number;
+    name: string;
+    user: string;
+    password: string;
+    connectionLimit: number;
+  };
   upload: {
     dir: string;
     maxUploadMb: number;
@@ -62,6 +70,12 @@ function validateAndGetEnv(): EnvConfig {
     throw new Error('OPENAI_API_KEY が設定されていません。');
   }
 
+  const sadoaHost = process.env.SADOA_DB_HOST || host;
+  const sadoaPort = parseInt(process.env.SADOA_DB_PORT || String(dbPort), 10);
+  const sadoaName = process.env.SADOA_DB_NAME || 'sadoa';
+  const sadoaUser = process.env.SADOA_DB_USER || user;
+  const sadoaPassword = process.env.SADOA_DB_PASSWORD !== undefined ? process.env.SADOA_DB_PASSWORD : password;
+
   return {
     nodeEnv,
     port,
@@ -73,6 +87,14 @@ function validateAndGetEnv(): EnvConfig {
       user: user!,
       password: password!,
       connectionLimit,
+    },
+    sadoaDb: {
+      host: sadoaHost!,
+      port: sadoaPort,
+      name: sadoaName,
+      user: sadoaUser!,
+      password: sadoaPassword!,
+      connectionLimit: 5,
     },
     upload: {
       dir: uploadDir,
