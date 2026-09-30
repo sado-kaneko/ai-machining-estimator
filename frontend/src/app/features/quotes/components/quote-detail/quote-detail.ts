@@ -58,8 +58,10 @@ export class QuoteDetailComponent implements OnInit {
   isChangingMachine = signal<boolean>(false);
   machineMessage = signal<string | null>(null);
 
-  // タブ切り替え ('features' | 'operations' | 'cycle-time' | 'lathe' | 'actual')
-  activeTab = signal<'features' | 'operations' | 'cycle-time' | 'lathe' | 'actual'>('lathe');
+  // タブ切り替え: 目的別4ステップ構成 (PHASE10.5)
+  // 'overview' (STEP1: 図面・AI解析) | 'review' (STEP2: 加工内容確認) | 'calculation' (STEP3: 設備・CT計算) | 'comparison' (STEP4: 実績比較)
+  activeTab = signal<'overview' | 'review' | 'calculation' | 'comparison'>('overview');
+  reviewSubTab = signal<'features' | 'operations'>('features');
 
   // 実績フィードバック関連シグナル (PHASE10)
   actualCycleTimes = signal<ActualCycleTime[]>([]);
@@ -421,7 +423,8 @@ export class QuoteDetailComponent implements OnInit {
         this.isGeneratingOperations.set(false);
         this.operationSuccessMessage.set(`加工工程候補（${res.operationCount}件）を生成しました。`);
         this.loadOperations(quoteId);
-        this.activeTab.set('operations'); // 生成後は工程タブへ切り替え
+        this.activeTab.set('review');
+        this.reviewSubTab.set('operations'); // 生成後は工程サブタブへ切り替え
       },
       error: (err) => {
         this.isGeneratingOperations.set(false);

@@ -1,6 +1,11 @@
 <div class="quote-detail-container">
   <div class="header">
-    <h1>見積案件詳細</h1>
+    <div class="header-title-box">
+      <h1>見積案件詳細</h1>
+      @if (quote(); as q) {
+        <span class="quote-number-tag">{{ q.quoteNo || ('ID: ' + q.id) }}</span>
+      }
+    </div>
     <button class="btn btn-secondary" (click)="goBack()">一覧へ戻る</button>
   </div>
 
@@ -13,42 +18,94 @@
   @if (isLoading()) {
     <div class="loading">データを読み込み中...</div>
   } @else if (quote(); as q) {
-    <div class="detail-card">
-      <div class="detail-section">
-        <h2>基本情報</h2>
+
+    <!-- ステップ・ワークフロー・ナビゲーション (PHASE10.5) -->
+    <div class="workflow-stepper">
+      <div
+        class="step-item"
+        [class.active]="activeTab() === 'overview'"
+        (click)="activeTab.set('overview')"
+      >
+        <div class="step-num">STEP 1</div>
+        <div class="step-label">図面・AI解析</div>
+        <div class="step-badge">
+          @if (drawings().length > 0 && activeAnalysis()) {
+            <span class="badge badge-success">解析済</span>
+          } @else if (drawings().length > 0) {
+            <span class="badge badge-warning">未解析</span>
+          } @else {
+            <span class="badge badge-secondary">図面未登録</span>
+          }
+        </div>
+      </div>
+
+      <div class="step-connector">&gt;</div>
+
+      <div
+        class="step-item"
+        [class.active]="activeTab() === 'review'"
+        (click)="activeTab.set('review')"
+      >
+        <div class="step-num">STEP 2</div>
+        <div class="step-label">加工内容確認</div>
+        <div class="step-badge">
+          @if (features().length > 0) {
+            <span class="badge badge-success">{{ features().length }} Feature</span>
+          } @else {
+            <span class="badge badge-secondary">未確認</span>
+          }
+        </div>
+      </div>
+
+      <div class="step-connector">&gt;</div>
+
+      <div
+        class="step-item"
+        [class.active]="activeTab() === 'calculation'"
+        (click)="activeTab.set('calculation')"
+      >
+        <div class="step-num">STEP 3</div>
+        <div class="step-label">設備・CT計算</div>
+        <div class="step-badge">
+          @if (latheCycleTime(); as ct) {
+            <span class="badge badge-highlight">{{ ct.totalCycleTimeSec }}秒</span>
+          } @else {
+            <span class="badge badge-secondary">未計算</span>
+          }
+        </div>
+      </div>
+
+      <div class="step-connector">&gt;</div>
+
+      <div
+        class="step-item"
+        [class.active]="activeTab() === 'comparison'"
+        (click)="activeTab.set('comparison')"
+      >
+        <div class="step-num">STEP 4</div>
+        <div class="step-label">実績比較</div>
+        <div class="step-badge">
+          @if (actualCycleTimes().length > 0) {
+            <span class="badge badge-success">{{ actualCycleTimes().length }}件蓄積</span>
+          } @else {
+            <span class="badge badge-secondary">未登録</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- 常時表示エリア: 基本情報サマリ -->
+    <div class="detail-card summary-card mb-4">
+      <div class="summary-card-inner">
         <div class="detail-grid">
-          <div class="detail-item">
-            <span class="label">ID</span>
-            <span class="value">{{ q.id }}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="label">見積番号</span>
-            <span class="value">{{ q.quoteNo || '-' }}</span>
-          </div>
-
           <div class="detail-item">
             <span class="label">顧客名</span>
             <span class="value font-bold">{{ q.customerName }}</span>
           </div>
 
           <div class="detail-item">
-            <span class="label">状態</span>
-            <span class="value">
-              <span class="badge" [class.badge-draft]="q.status === 'DRAFT'">
-                {{ q.status }}
-              </span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h2>部品情報</h2>
-        <div class="detail-grid">
-          <div class="detail-item">
             <span class="label">図番</span>
-            <span class="value">{{ q.partNo || '-' }}</span>
+            <span class="value font-mono">{{ q.partNo || '-' }}</span>
           </div>
 
           <div class="detail-item">
@@ -58,16 +115,404 @@
 
           <div class="detail-item">
             <span class="label">数量</span>
-            <span class="value">{{ q.quantity }} 個</span>
+            <span class="value font-bold">{{ q.quantity }} 個</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">材質 (AI解析)</span>
+            <span class="value font-highlight">
+              {{ activeAnalysis()?.material || '-' }}
+            </span>
+          </div>
+
+          <div class="detail-item">
+            <span class="label">案件状態</span>
+            <span class="value">
+              <span class="badge" [class.badge-draft]="q.status === 'DRAFT'">
+                {{ q.status }}
+              </span>
+            </span>
           </div>
         </div>
-      </div>
 
-      <!-- 加工設備・計算エンジン設定 (PHASE09) -->
-      <div class="detail-section">
-        <h2>加工設備・計算エンジン設定</h2>
-        <div class="machine-select-card">
-          <div class="detail-grid">
+        @if (q.notes) {
+          <div class="notes-preview">
+            <span class="label">備考:</span>
+            <span class="value text-muted">{{ q.notes }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- STEP 1: 図面・AI解析エリア                                     -->
+    <!-- ============================================================== -->
+    @if (activeTab() === 'overview') {
+      <div class="content-panel">
+        <div class="panel-header">
+          <div>
+            <h2>STEP 1: 図面管理 & AI図面解析</h2>
+            <p class="panel-subtext">PDF図面をアップロードし、OpenAI Vision解析により材質・主要寸法・加工Feature候補を抽出します。</p>
+          </div>
+        </div>
+
+        @if (drawingErrorMessage()) {
+          <div class="alert alert-error">{{ drawingErrorMessage() }}</div>
+        }
+
+        <div class="upload-section-card">
+          <div class="upload-box">
+            <input
+              type="file"
+              id="pdfFileInput"
+              accept="application/pdf"
+              (change)="onFileSelected($event)"
+              [disabled]="isUploading()"
+            />
+            <button
+              class="btn btn-primary"
+              (click)="uploadDrawing()"
+              [disabled]="!selectedFile() || isUploading()"
+            >
+              {{ isUploading() ? 'アップロード中...' : 'PDFをアップロード' }}
+            </button>
+          </div>
+
+          @if (drawings().length === 0) {
+            <p class="no-drawings">アップロードされた図面はありません。PDFを選択してアップロードしてください。</p>
+          } @else {
+            <div class="drawings-table-wrapper mt-3">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;">ID</th>
+                    <th>ファイル名</th>
+                    <th style="width: 90px;">サイズ</th>
+                    <th style="width: 140px;">登録日時</th>
+                    <th style="width: 170px;">AI解析操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (d of drawings(); track d.id) {
+                    <tr [class.row-selected]="selectedDrawingId() === d.id">
+                      <td class="text-center">{{ d.id }}</td>
+                      <td>
+                        <span class="font-bold">{{ d.originalName }}</span>
+                        @if (selectedDrawingId() === d.id) {
+                          <span class="badge badge-type ml-1">選択中</span>
+                        }
+                      </td>
+                      <td>{{ (d.fileSize / 1024) | number: '1.0-1' }} KB</td>
+                      <td>{{ d.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
+                      <td>
+                        <div class="table-actions">
+                          <button
+                            class="btn btn-outline-primary btn-sm"
+                            (click)="runAnalysis(d.id)"
+                            [disabled]="isAnalyzing()"
+                          >
+                            {{ isAnalyzing() && selectedDrawingId() === d.id ? '解析実行中...' : 'AI解析実行' }}
+                          </button>
+                          <button
+                            class="btn btn-danger btn-sm"
+                            (click)="deleteDrawing(d.id)"
+                            [disabled]="isAnalyzing()"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+
+        <!-- AI解析結果表示 -->
+        <div class="mt-4">
+          <h3>AI解析結果サマリ</h3>
+          @if (isLoadingAnalysis()) {
+            <div class="loading">解析情報を読み込み中...</div>
+          } @else if (activeAnalysis(); as analysis) {
+            <div class="analysis-summary-box">
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="label">材質名</span>
+                  <span class="value font-bold font-highlight">{{ analysis.material || '未特定' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">部品形状分類</span>
+                  <span class="value font-bold">{{ analysis.partType || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">素材外径</span>
+                  <span class="value">{{ analysis.stockDiameter !== null ? (analysis.stockDiameter + ' mm') : '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">完成全長</span>
+                  <span class="value">{{ analysis.overallLength !== null ? (analysis.overallLength + ' mm') : '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">解析日時</span>
+                  <span class="value text-muted">{{ analysis.createdAt }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">解析ステータス</span>
+                  <span class="value">
+                    <span class="badge badge-success">{{ analysis.status }}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-next-bar">
+              <span class="text-muted">AI解析が完了しました。抽出された加工内容（Feature）を確認します。</span>
+              <button class="btn btn-primary" (click)="activeTab.set('review')">
+                次へ: 加工内容確認 (STEP 2) &rarr;
+              </button>
+            </div>
+          } @else {
+            <div class="no-drawings">
+              <p>図面のAI解析がまだ実行されていません。上の「AI解析実行」ボタンをクリックしてください。</p>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ============================================================== -->
+    <!-- STEP 2: 加工内容確認 (Feature・加工工程候補)                    -->
+    <!-- ============================================================== -->
+    @if (activeTab() === 'review') {
+      <div class="content-panel">
+        <div class="panel-header">
+          <div>
+            <h2>STEP 2: 加工内容確認 (技術者レビュー)</h2>
+            <p class="panel-subtext">AIが抽出した加工部位（Feature）を確認・修正し、切削見積用の加工工程候補を整理します。</p>
+          </div>
+          <div class="sub-tab-controls">
+            <button
+              class="sub-tab-btn"
+              [class.active]="reviewSubTab() === 'features'"
+              (click)="reviewSubTab.set('features')"
+            >
+              加工Feature一覧 ({{ features().length }})
+            </button>
+            <button
+              class="sub-tab-btn"
+              [class.active]="reviewSubTab() === 'operations'"
+              (click)="reviewSubTab.set('operations')"
+            >
+              加工工程候補一覧 ({{ operations().length }})
+            </button>
+          </div>
+        </div>
+
+        @if (featureSuccessMessage()) {
+          <div class="alert alert-success">{{ featureSuccessMessage() }}</div>
+        }
+        @if (featureErrorMessage()) {
+          <div class="alert alert-error">{{ featureErrorMessage() }}</div>
+        }
+        @if (operationSuccessMessage()) {
+          <div class="alert alert-success">{{ operationSuccessMessage() }}</div>
+        }
+        @if (operationErrorMessage()) {
+          <div class="alert alert-error">{{ operationErrorMessage() }}</div>
+        }
+
+        <!-- 1. Feature一覧エリア -->
+        @if (reviewSubTab() === 'features') {
+          <div class="features-box">
+            <div class="section-header-flex">
+              <h3>加工Feature一覧 ({{ features().length }}件)</h3>
+              @if (activeAnalysis(); as analysis) {
+                <button
+                  class="btn btn-secondary btn-sm"
+                  (click)="generateFeatures(analysis.id)"
+                  [disabled]="isGeneratingFeatures()"
+                >
+                  {{ isGeneratingFeatures() ? '生成中...' : 'Feature再生成' }}
+                </button>
+              }
+            </div>
+
+            @if (isLoadingFeatures()) {
+              <div class="loading">Feature一覧を取得中...</div>
+            } @else if (features().length === 0) {
+              <p class="no-drawings">登録されている加工Featureはありません。「Feature再生成」ボタンから抽出を実行してください。</p>
+            } @else {
+              <div class="drawings-table-wrapper">
+                <table class="data-table feature-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">No</th>
+                      <th style="width: 90px;">種類</th>
+                      <th>説明 / 根拠</th>
+                      <th style="width: 80px;" class="text-right">径 (mm)</th>
+                      <th style="width: 80px;" class="text-right">長さ (mm)</th>
+                      <th style="width: 80px;" class="text-right">深さ (mm)</th>
+                      <th style="width: 100px;">状態</th>
+                      <th style="width: 80px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (f of features(); track f.id) {
+                      <tr>
+                        <td class="text-center font-bold">{{ f.sequenceNo }}</td>
+                        <td><span class="badge badge-type">{{ f.featureType }}</span></td>
+                        <td>{{ f.description || '-' }}</td>
+                        <td class="text-right">{{ f.diameter !== null ? f.diameter : '-' }}</td>
+                        <td class="text-right">{{ f.length !== null ? f.length : '-' }}</td>
+                        <td class="text-right">{{ f.depth !== null ? f.depth : '-' }}</td>
+                        <td>
+                          @if (f.needsReview) {
+                            <span class="badge badge-review-needed">要確認</span>
+                          } @else {
+                            <span class="badge badge-confirmed">確認済</span>
+                          }
+                        </td>
+                        <td>
+                          <button class="btn btn-outline-primary btn-sm" (click)="openEditModal(f)">
+                            編集
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- 2. 加工工程候補エリア -->
+        @if (reviewSubTab() === 'operations') {
+          <div class="operations-box">
+            <div class="section-header-flex">
+              <div>
+                <h3>加工工程候補一覧 ({{ operations().length }}件)</h3>
+                <p class="section-subtext">Featureをもとに工程設計ルールに基づき自動展開された工程候補です。</p>
+              </div>
+              <button
+                class="btn btn-primary btn-sm"
+                (click)="handleGenerateOperations()"
+                [disabled]="isGeneratingOperations() || features().length === 0"
+              >
+                {{ isGeneratingOperations() ? '生成中...' : '工程候補を再生成' }}
+              </button>
+            </div>
+
+            @if (isLoadingOperations()) {
+              <div class="loading">工程候補を読み込み中...</div>
+            } @else if (operations().length === 0) {
+              <div class="no-drawings">
+                <p>加工工程候補がまだ生成されていません。「工程候補を再生成」ボタンをクリックして工程設計を実行してください。</p>
+              </div>
+            } @else {
+              <div class="drawings-table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">順序</th>
+                      <th style="width: 100px;">工程種類</th>
+                      <th>工程内容・説明</th>
+                      <th style="width: 110px;">設備分類</th>
+                      <th style="width: 90px;">状態</th>
+                      <th style="width: 120px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (op of operations(); track op.id) {
+                      <tr>
+                        <td class="text-center font-bold">{{ op.sequenceNo }}</td>
+                        <td><span class="badge badge-type">{{ op.operationType }}</span></td>
+                        <td>{{ op.description }}</td>
+                        <td>{{ op.machineType }}</td>
+                        <td>
+                          @if (op.status === 'CONFIRMED') {
+                            <span class="badge badge-confirmed">確定</span>
+                          } @else if (op.status === 'MANUAL') {
+                            <span class="badge badge-type">手動</span>
+                          } @else {
+                            <span class="badge badge-review-needed">生成済</span>
+                          }
+                        </td>
+                        <td>
+                          <div class="table-actions">
+                            <button class="btn btn-outline-primary btn-sm" (click)="openEditOperationModal(op)">
+                              編集
+                            </button>
+                            <button class="btn btn-danger btn-sm" (click)="deleteOperation(op.id)">
+                              削除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        }
+
+        <div class="step-next-bar mt-4">
+          <span class="text-muted">加工Featureと工程候補の確認が完了したら、計算設備を選択してサイクルタイムを算出します。</span>
+          <button class="btn btn-primary" (click)="activeTab.set('calculation')">
+            次へ: 設備選択・CT計算 (STEP 3) &rarr;
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ============================================================== -->
+    <!-- STEP 3: 設備選択 & サイクルタイム計算 & 結果確認               -->
+    <!-- ============================================================== -->
+    @if (activeTab() === 'calculation') {
+      <div class="content-panel">
+        <div class="panel-header">
+          <div>
+            <h2>STEP 3: 設備選択 & サイクルタイム計算・結果確認</h2>
+            <p class="panel-subtext">使用設備を選択し、切削条件マスタと連動した確定的な計算ロジックによりサイクルタイムを推計します。</p>
+          </div>
+        </div>
+
+        @if (latheSuccessMessage()) {
+          <div class="alert alert-success">{{ latheSuccessMessage() }}</div>
+        }
+        @if (latheErrorMessage()) {
+          <div class="alert alert-error">{{ latheErrorMessage() }}</div>
+        }
+
+        <!-- 1. 設備選択 & アクションカード -->
+        <div class="machine-select-card mb-4">
+          <div class="machine-select-header">
+            <div>
+              <h3>使用加工設備の選定</h3>
+              <p class="section-subtext">設備ごとの主軸上限・ガイドブッシュ仕様・計算エンジンに紐付いてサイクルタイムが算出されます。</p>
+            </div>
+            <div class="header-actions">
+              <button
+                class="btn btn-secondary btn-sm"
+                (click)="handleGenerateLatheOperations()"
+                [disabled]="isGeneratingLatheOps()"
+              >
+                {{ isGeneratingLatheOps() ? '工程生成中...' : '自動旋盤工程を生成' }}
+              </button>
+              <button
+                class="btn btn-primary"
+                (click)="handleCalculateLatheCycleTime()"
+                [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
+              >
+                {{ isCalculatingLatheCt() ? '計算実行中...' : '⚡ サイクルタイム計算を実行' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-grid mt-3">
             <div class="detail-item">
               <span class="label">使用加工機</span>
               <div class="machine-picker-row">
@@ -84,7 +529,7 @@
                   }
                 </select>
                 @if (isChangingMachine()) {
-                  <span class="updating-text">更新中...</span>
+                  <span class="updating-text">変更反映中...</span>
                 }
               </div>
             </div>
@@ -113,992 +558,526 @@
             <div class="alert alert-success mt-2">{{ machineMessage() }}</div>
           }
         </div>
+
+        <!-- 2. 最重要結果表示エリア (推定サイクルタイム強調カード) -->
+        @if (latheCycleTime(); as ct) {
+          <div class="result-hero-card mb-4">
+            <div class="hero-header">
+              <span class="hero-badge">推定サイクルタイム算出結果</span>
+              <span class="hero-machine">対象設備: <strong>{{ ct.machineName }}</strong></span>
+            </div>
+
+            <div class="hero-main-kpi">
+              <div class="hero-kpi-block">
+                <span class="hero-kpi-label">推定サイクルタイム (1個あたり)</span>
+                <div class="hero-kpi-value-box">
+                  <span class="hero-kpi-value">{{ ct.totalCycleTimeSec }}</span>
+                  <span class="hero-kpi-unit">秒 / 個</span>
+                </div>
+                <span class="hero-kpi-sub">
+                  (約 {{ (ct.totalCycleTimeSec / 60) | number: '1.1-2' }} 分)
+                </span>
+              </div>
+
+              <div class="hero-kpi-divider"></div>
+
+              <div class="hero-sub-kpi-grid">
+                <div class="hero-sub-kpi-item">
+                  <span class="sub-label">ロット総加工時間 ({{ ct.quantity }}個)</span>
+                  <span class="sub-val font-highlight">{{ ct.totalLotTimeSec }} 秒</span>
+                  <span class="sub-desc">約 {{ (ct.totalLotTimeSec / 60) | number: '1.1-1' }} 分</span>
+                </div>
+
+                <div class="hero-sub-kpi-item">
+                  <span class="sub-label">純切削時間</span>
+                  <span class="sub-val">{{ ct.cuttingTimeSec }} 秒</span>
+                  <span class="sub-desc">刃物接触切削時間</span>
+                </div>
+
+                <div class="hero-sub-kpi-item">
+                  <span class="sub-label">非切削時間</span>
+                  <span class="sub-val">{{ ct.nonCuttingTimeSec }} 秒</span>
+                  <span class="sub-desc">材料送り・回収・工具交換等</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. 工程別詳細表示テーブル -->
+          <div class="operations-breakdown-section mt-4">
+            <div class="section-header-flex">
+              <div>
+                <h3>工程別加工時間内訳 ({{ ct.operations.length }}工程)</h3>
+                <p class="section-subtext">Excel見積ノウハウを完全再現した各工具・工程別の切削速度・送り・加工時間明細です。</p>
+              </div>
+            </div>
+
+            <div class="drawings-table-wrapper">
+              <table class="data-table lathe-table">
+                <thead>
+                  <tr>
+                    <th style="width: 45px;">No</th>
+                    <th>工程名</th>
+                    <th style="width: 75px;" class="text-right">加工径<br><small>(φ mm)</small></th>
+                    <th style="width: 75px;" class="text-right">加工長<br><small>(L mm)</small></th>
+                    <th style="width: 75px;" class="text-right">切削速度<br><small>(Vc m/min)</small></th>
+                    <th style="width: 80px;" class="text-right">送り量<br><small>(F mm/rev)</small></th>
+                    <th style="width: 75px;" class="text-right">回転数<br><small>(N rpm)</small></th>
+                    <th style="width: 85px;" class="text-right">切削時間</th>
+                    <th style="width: 85px;" class="text-right">非切削時間</th>
+                    <th style="width: 90px;" class="text-right">工程合計</th>
+                    <th style="width: 75px;">状態</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (op of ct.operations; track op.id) {
+                    <tr>
+                      <td class="text-center font-bold">{{ op.sequenceNo }}</td>
+                      <td>
+                        <span class="badge badge-type">{{ op.processName }}</span>
+                      </td>
+                      <td class="text-right">{{ op.diameter }}</td>
+                      <td class="text-right">{{ op.machiningLength }}</td>
+                      <td class="text-right">{{ op.vc > 0 ? op.vc : '-' }}</td>
+                      <td class="text-right">{{ op.feed > 0 ? op.feed : '-' }}</td>
+                      <td class="text-right">{{ op.rpm > 0 ? op.rpm : '-' }}</td>
+                      <td class="text-right font-highlight">{{ op.cuttingTimeSec > 0 ? (op.cuttingTimeSec + ' 秒') : '-' }}</td>
+                      <td class="text-right text-muted">{{ op.nonCuttingTimeSec > 0 ? (op.nonCuttingTimeSec + ' 秒') : '-' }}</td>
+                      <td class="text-right font-bold">{{ op.totalTimeSec > 0 ? (op.totalTimeSec + ' 秒') : '-' }}</td>
+                      <td>
+                        @if (op.status === 'CONFIRMED') {
+                          <span class="badge badge-confirmed">確認済</span>
+                        } @else {
+                          <span class="badge badge-review-needed">生成済</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="step-next-bar mt-4">
+            <span class="text-muted">サイクルタイム算出完了。加工完了後は現場の実績時間を登録して差異比較を行います。</span>
+            <button class="btn btn-primary" (click)="activeTab.set('comparison')">
+              次へ: 実績比較 (STEP 4) &rarr;
+            </button>
+          </div>
+        } @else {
+          <div class="no-drawings mt-3">
+            <p>サイクルタイムがまだ計算されていません。上の「自動旋盤工程を生成」を実行した後、「⚡ サイクルタイム計算を実行」ボタンをクリックしてください。</p>
+          </div>
+        }
       </div>
+    }
 
-      @if (q.notes) {
-        <div class="detail-section">
-          <h2>備考</h2>
-          <p class="notes-content">{{ q.notes }}</p>
+    <!-- ============================================================== -->
+    <!-- STEP 4: 実績比較 (PHASE10)                                      -->
+    <!-- ============================================================== -->
+    @if (activeTab() === 'comparison') {
+      <div class="content-panel">
+        <div class="panel-header">
+          <div>
+            <h2>STEP 4: 加工実績フィードバック & サイクルタイム差異比較</h2>
+            <p class="panel-subtext">見積計算値と現場加工実績を蓄積・比較し、見積精度の改善ループを構築します。</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary" (click)="openActualModal()">
+              ＋ 加工実績を登録
+            </button>
+          </div>
         </div>
-      }
 
-      <!-- 図面管理セクション -->
-      <div class="detail-section">
-        <h2>図面管理 (PDF)</h2>
+        @if (actualSuccessMessage()) {
+          <div class="alert alert-success">{{ actualSuccessMessage() }}</div>
+        }
+        @if (actualErrorMessage()) {
+          <div class="alert alert-error">{{ actualErrorMessage() }}</div>
+        }
 
-        @if (drawingErrorMessage()) {
-          <div class="alert alert-error">
-            {{ drawingErrorMessage() }}
+        <!-- 差異比較サマリカード -->
+        @if (comparison(); as comp) {
+          <div class="ct-summary-cards mb-4">
+            <div class="ct-card">
+              <span class="ct-card-label">使用設備</span>
+              <span class="ct-card-value font-highlight">{{ comp.machineName }}</span>
+              <span class="ct-card-sub">蓄積ロット数: {{ comp.actualCount }} 回</span>
+            </div>
+
+            <div class="ct-card">
+              <span class="ct-card-label">見積CT (1個あたり)</span>
+              <span class="ct-card-value">{{ comp.estimateSec }} 秒</span>
+              <span class="ct-card-sub">理論計算サイクルタイム</span>
+            </div>
+
+            <div class="ct-card">
+              <span class="ct-card-label">実績CT (加重平均/個)</span>
+              <span class="ct-card-value font-bold">{{ comp.actualSec }} 秒</span>
+              <span class="ct-card-sub">最終加工日: {{ comp.latestActualDate || '-' }}</span>
+            </div>
+
+            <div
+              class="ct-card"
+              [class.ct-card-diff-plus]="comp.differenceSec > 0"
+              [class.ct-card-diff-minus]="comp.differenceSec <= 0"
+            >
+              <span class="ct-card-label">差異 (実績 - 見積)</span>
+              <span class="ct-card-value">
+                {{ comp.differenceSec > 0 ? ('+' + comp.differenceSec) : comp.differenceSec }} 秒
+              </span>
+              <span class="ct-card-sub font-bold">
+                差異率: {{ comp.differenceRate > 0 ? ('+' + comp.differenceRate) : comp.differenceRate }} %
+              </span>
+            </div>
+          </div>
+        } @else if (actualCycleTimes().length === 0) {
+          <div class="no-drawings mb-4">
+            <p>まだ加工実績が登録されていません。「＋ 加工実績を登録」ボタンから加工日・実加工時間・ロット数量を入力してください。</p>
           </div>
         }
 
-        <div class="upload-box">
-          <input
-            type="file"
-            id="pdfFileInput"
-            accept="application/pdf"
-            (change)="onFileSelected($event)"
-            [disabled]="isUploading()"
-          />
-          <button
-            class="btn btn-primary"
-            (click)="uploadDrawing()"
-            [disabled]="!selectedFile() || isUploading()"
-          >
-            {{ isUploading() ? 'アップロード中...' : 'PDFをアップロード' }}
-          </button>
-        </div>
+        <!-- 実績履歴一覧テーブル -->
+        <div class="actual-history-section">
+          <div class="section-header-flex">
+            <h3>加工実績履歴 ({{ actualCycleTimes().length }}件)</h3>
+          </div>
 
-        @if (drawings().length === 0) {
-          <p class="no-drawings">アップロードされた図面はありません。</p>
-        } @else {
-          <div class="drawings-table-wrapper">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>ファイル名</th>
-                  <th>サイズ</th>
-                  <th>登録日時</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (d of drawings(); track d.id) {
+          @if (isLoadingActual()) {
+            <div class="loading">実績データを読み込み中...</div>
+          } @else if (actualCycleTimes().length === 0) {
+            <p class="no-drawings">履歴レコードはありません。</p>
+          } @else {
+            <div class="drawings-table-wrapper">
+              <table class="data-table actual-table">
+                <thead>
                   <tr>
-                    <td>{{ d.id }}</td>
-                    <td>{{ d.originalName }}</td>
-                    <td>{{ (d.fileSize / 1024) | number: '1.0-1' }} KB</td>
-                    <td>{{ d.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
-                    <td>
-                      <div class="table-actions">
-                        <button
-                          class="btn btn-outline-primary btn-sm"
-                          (click)="runAnalysis(d.id)"
-                          [disabled]="isAnalyzing()"
-                        >
-                          {{ isAnalyzing() && selectedDrawingId() === d.id ? '解析中...' : 'AI解析' }}
-                        </button>
+                    <th style="width: 50px;">No</th>
+                    <th style="width: 100px;">加工日</th>
+                    <th>設備</th>
+                    <th style="width: 90px;" class="text-right">加工数量</th>
+                    <th style="width: 110px;" class="text-right">実績1個CT</th>
+                    <th style="width: 110px;" class="text-right">段取時間</th>
+                    <th style="width: 100px;">作業担当者</th>
+                    <th>備考 / 特記事項</th>
+                    <th style="width: 70px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of actualCycleTimes(); track item.id; let i = $index) {
+                    <tr>
+                      <td class="text-center font-bold">{{ i + 1 }}</td>
+                      <td>{{ item.productionDate || '-' }}</td>
+                      <td>{{ item.machineName || '未指定' }}</td>
+                      <td class="text-right font-bold">{{ item.quantity }} 個</td>
+                      <td class="text-right font-highlight">{{ item.actualCycleTimeSec }} 秒</td>
+                      <td class="text-right text-muted">{{ item.setupTimeSec > 0 ? (item.setupTimeSec + ' 秒') : '-' }}</td>
+                      <td>{{ item.operatorName || '-' }}</td>
+                      <td class="notes-cell">{{ item.notes || '-' }}</td>
+                      <td>
                         <button
                           class="btn btn-danger btn-sm"
-                          (click)="deleteDrawing(d.id)"
-                          [disabled]="isAnalyzing()"
+                          (click)="handleDeleteActualCycleTime(item.id)"
                         >
                           削除
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
       </div>
+    }
 
-      <!-- AI解析結果・加工Feature管理セクション -->
-      <div class="detail-section">
-        <div class="section-header-flex">
-          <h2>AI解析・加工工程設計</h2>
-          <div class="tab-controls">
-            <button
-              class="tab-btn"
-              [class.active]="activeTab() === 'features'"
-              (click)="activeTab.set('features')"
-            >
-              加工Feature ({{ features().length }})
-            </button>
-            <button
-              class="tab-btn"
-              [class.active]="activeTab() === 'operations'"
-              (click)="activeTab.set('operations')"
-            >
-              加工工程候補 ({{ operations().length }})
-            </button>
-            <button
-              class="tab-btn"
-              [class.active]="activeTab() === 'cycle-time'"
-              (click)="activeTab.set('cycle-time')"
-            >
-              汎用旋盤計算
-            </button>
-            <button
-              class="tab-btn"
-              [class.active]="activeTab() === 'lathe'"
-              (click)="activeTab.set('lathe')"
-            >
-              自動旋盤計算 ({{ latheOperations().length }})
-            </button>
-            <button
-              class="tab-btn"
-              [class.active]="activeTab() === 'actual'"
-              (click)="activeTab.set('actual')"
-            >
-              実績比較 ({{ actualCycleTimes().length }})
-            </button>
+    <!-- ============================================================== -->
+    <!-- モーダル群                                                     -->
+    <!-- ============================================================== -->
+
+    <!-- Feature編集モーダル -->
+    @if (editingFeature(); as target) {
+      <div class="modal-backdrop">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>加工Feature編集 (No.{{ target.sequenceNo }})</h3>
+            <button class="modal-close" (click)="closeEditModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Feature種類</label>
+              <select [(ngModel)]="editForm.featureType" class="form-control">
+                <option value="OD">OD (外径加工)</option>
+                <option value="ID">ID (内径加工)</option>
+                <option value="DRILL">DRILL (ドリル穴あけ)</option>
+                <option value="BORE">BORE (ボーリング仕上げ)</option>
+                <option value="THREAD">THREAD (ねじ切り)</option>
+                <option value="GROOVE">GROOVE (溝入れ)</option>
+                <option value="CHAMFER">CHAMFER (面取り)</option>
+                <option value="UNKNOWN">UNKNOWN (不明・その他)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>説明</label>
+              <input
+                type="text"
+                [(ngModel)]="editForm.description"
+                class="form-control"
+                placeholder="部位の説明"
+              />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>径 (mm)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="editForm.diameter"
+                  class="form-control"
+                  min="0"
+                  step="0.01"
+                  placeholder="例: 30"
+                />
+              </div>
+              <div class="form-group">
+                <label>長さ (mm)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="editForm.length"
+                  class="form-control"
+                  min="0"
+                  step="0.01"
+                  placeholder="例: 50"
+                />
+              </div>
+              <div class="form-group">
+                <label>深さ (mm)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="editForm.depth"
+                  class="form-control"
+                  min="0"
+                  step="0.01"
+                  placeholder="例: 5"
+                />
+              </div>
+            </div>
+
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="editForm.needsReview" />
+                技術者による要再確認フラグ (needsReview)
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="closeEditModal()">キャンセル</button>
+            <button class="btn btn-primary" (click)="saveFeature()">保存する</button>
           </div>
         </div>
-
-        @if (featureSuccessMessage()) {
-          <div class="alert alert-success">
-            {{ featureSuccessMessage() }}
-          </div>
-        }
-
-        @if (featureErrorMessage()) {
-          <div class="alert alert-error">
-            {{ featureErrorMessage() }}
-          </div>
-        }
-
-        @if (isLoadingAnalysis()) {
-          <div class="loading">解析情報を読み込み中...</div>
-        } @else if (activeAnalysis(); as analysis) {
-          <!-- 基本解析情報表示エリア -->
-          <div class="analysis-summary-box">
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="label">部品種類</span>
-                <span class="value font-bold">{{ analysis.partType || '-' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">材質</span>
-                <span class="value font-bold">{{ analysis.material || '-' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">素材外径 (mm)</span>
-                <span class="value">{{ analysis.stockDiameter !== null ? (analysis.stockDiameter + ' mm') : '-' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">完成全長 (mm)</span>
-                <span class="value">{{ analysis.overallLength !== null ? (analysis.overallLength + ' mm') : '-' }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Featureタブ表示エリア -->
-          @if (activeTab() === 'features') {
-            <div class="features-box">
-              <div class="section-header-flex">
-                <h3>加工Feature一覧 ({{ features().length }}件)</h3>
-                <button
-                  class="btn btn-secondary btn-sm"
-                  (click)="generateFeatures(analysis.id)"
-                  [disabled]="isGeneratingFeatures()"
-                >
-                  {{ isGeneratingFeatures() ? '生成中...' : 'Feature再生成' }}
-                </button>
-              </div>
-
-              @if (isLoadingFeatures()) {
-                <div class="loading">Feature一覧を取得中...</div>
-              } @else if (features().length === 0) {
-                <p class="no-drawings">登録されている加工Featureはありません。「Feature再生成」ボタンから抽出を実行してください。</p>
-              } @else {
-                <div class="drawings-table-wrapper">
-                  <table class="data-table feature-table">
-                    <thead>
-                      <tr>
-                        <th style="width: 50px;">No</th>
-                        <th style="width: 90px;">種類</th>
-                        <th>説明 / 根拠</th>
-                        <th style="width: 80px;">径 (mm)</th>
-                        <th style="width: 80px;">長さ (mm)</th>
-                        <th style="width: 80px;">深さ (mm)</th>
-                        <th style="width: 100px;">状態</th>
-                        <th style="width: 80px;">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (f of features(); track f.id) {
-                        <tr [class.row-warning]="f.needsReview">
-                          <td class="text-center">{{ f.sequenceNo }}</td>
-                          <td>
-                            <span class="badge badge-type">{{ f.featureType }}</span>
-                          </td>
-                          <td>
-                            <div class="feature-desc">{{ f.description || '-' }}</div>
-                            @if (f.sourceText) {
-                              <div class="feature-source">AI根拠: {{ f.sourceText }}</div>
-                            }
-                          </td>
-                          <td class="text-right">{{ f.diameter !== null ? f.diameter : '-' }}</td>
-                          <td class="text-right">{{ f.length !== null ? f.length : '-' }}</td>
-                          <td class="text-right">{{ f.depth !== null ? f.depth : '-' }}</td>
-                          <td>
-                            @if (f.needsReview) {
-                              <span class="badge badge-review-needed">要確認</span>
-                            } @else {
-                              <span class="badge badge-confirmed">確認済み</span>
-                            }
-                          </td>
-                          <td>
-                            <button
-                              class="btn btn-secondary btn-sm"
-                              (click)="openEditModal(f)"
-                            >
-                              編集
-                            </button>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- 加工工程タブ表示エリア -->
-          @if (activeTab() === 'operations') {
-            <div class="operations-box">
-              <div class="section-header-flex">
-                <h3>加工工程候補一覧 ({{ operations().length }}件)</h3>
-                <button
-                  class="btn btn-primary btn-sm"
-                  (click)="handleGenerateOperations()"
-                  [disabled]="isGeneratingOperations()"
-                >
-                  {{ isGeneratingOperations() ? '生成中...' : '加工工程生成' }}
-                </button>
-              </div>
-
-              @if (isLoadingOperations()) {
-                <div class="loading">加工工程一覧を取得中...</div>
-              } @else if (operations().length === 0) {
-                <p class="no-drawings">登録されている加工工程はありません。「加工工程生成」ボタンをクリックして候補を生成してください。</p>
-              } @else {
-                <div class="drawings-table-wrapper">
-                  <table class="data-table operation-table">
-                    <thead>
-                      <tr>
-                        <th style="width: 60px;">順序</th>
-                        <th style="width: 100px;">工程種類</th>
-                        <th>説明</th>
-                        <th style="width: 110px;">設備分類</th>
-                        <th style="width: 90px;">状態</th>
-                        <th style="width: 160px;">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (op of operations(); track op.id; let idx = $index) {
-                        <tr>
-                          <td class="text-center font-bold">{{ op.sequenceNo }}</td>
-                          <td>
-                            <span class="badge badge-type">{{ op.operationType }}</span>
-                          </td>
-                          <td>{{ op.description }}</td>
-                          <td>
-                            <span class="badge badge-machine">{{ op.machineType }}</span>
-                          </td>
-                          <td>
-                            @if (op.status === 'CONFIRMED') {
-                              <span class="badge badge-confirmed">確認済</span>
-                            } @else if (op.status === 'MANUAL') {
-                              <span class="badge badge-manual">手動</span>
-                            } @else {
-                              <span class="badge badge-review-needed">生成済</span>
-                            }
-                          </td>
-                          <td>
-                            <div class="table-actions">
-                              <button
-                                class="btn btn-secondary btn-sm btn-icon"
-                                [disabled]="idx === 0"
-                                (click)="moveOperation(idx, 'up')"
-                                title="上に移動"
-                              >
-                                ▲
-                              </button>
-                              <button
-                                class="btn btn-secondary btn-sm btn-icon"
-                                [disabled]="idx === operations().length - 1"
-                                (click)="moveOperation(idx, 'down')"
-                                title="下に移動"
-                              >
-                                ▼
-                              </button>
-                              <button
-                                class="btn btn-secondary btn-sm"
-                                (click)="openEditOperationModal(op)"
-                              >
-                                編集
-                              </button>
-                              <button
-                                class="btn btn-danger btn-sm"
-                                (click)="deleteOperation(op.id)"
-                              >
-                                削除
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- サイクルタイムタブ表示エリア -->
-          @if (activeTab() === 'cycle-time') {
-            <div class="cycle-time-box">
-              <div class="section-header-flex">
-                <h3>概算サイクルタイム計算</h3>
-                <button
-                  class="btn btn-primary btn-sm"
-                  (click)="handleCalculateCycleTime()"
-                  [disabled]="isCalculatingCycleTime() || operations().length === 0"
-                >
-                  {{ isCalculatingCycleTime() ? '計算中...' : 'サイクルタイム計算' }}
-                </button>
-              </div>
-
-              @if (cycleTimeSuccessMessage()) {
-                <div class="alert alert-success">
-                  {{ cycleTimeSuccessMessage() }}
-                </div>
-              }
-
-              @if (cycleTimeErrorMessage()) {
-                <div class="alert alert-error">
-                  {{ cycleTimeErrorMessage() }}
-                </div>
-              }
-
-              @if (isLoadingCycleTime()) {
-                <div class="loading">サイクルタイム計算結果を取得中...</div>
-              } @else if (cycleTimeResult(); as ct) {
-                <!-- 集計サマリーカード表示 -->
-                <div class="ct-summary-cards">
-                  <div class="ct-card">
-                    <span class="ct-card-label">1個あたり総時間</span>
-                    <span class="ct-card-value font-highlight">{{ ct.totalCycleTimeSec }} 秒</span>
-                    <span class="ct-card-sub">({{ (ct.totalCycleTimeSec / 60).toFixed(2) }} 分)</span>
-                  </div>
-                  <div class="ct-card">
-                    <span class="ct-card-label">ロット総加工時間 ({{ ct.quantity }}個)</span>
-                    <span class="ct-card-value font-highlight">{{ ct.totalLotTimeSec }} 秒</span>
-                    <span class="ct-card-sub">({{ (ct.totalLotTimeSec / 60).toFixed(1) }} 分 / {{ (ct.totalLotTimeSec / 3600).toFixed(2) }} 時間)</span>
-                  </div>
-                  <div class="ct-card">
-                    <span class="ct-card-label">切削時間 (1個)</span>
-                    <span class="ct-card-value">{{ ct.cuttingTimeSec }} 秒</span>
-                    <span class="ct-card-sub">割合: {{ ((ct.cuttingTimeSec / ct.totalCycleTimeSec) * 100).toFixed(1) }}%</span>
-                  </div>
-                  <div class="ct-card">
-                    <span class="ct-card-label">非切削時間 (1個)</span>
-                    <span class="ct-card-value">{{ ct.nonCuttingTimeSec }} 秒</span>
-                    <span class="ct-card-sub">割合: {{ ((ct.nonCuttingTimeSec / ct.totalCycleTimeSec) * 100).toFixed(1) }}%</span>
-                  </div>
-                </div>
-
-                <!-- 工程別内訳テーブル -->
-                <div class="ct-table-box" style="margin-top: 1.5rem;">
-                  <h4>工程別加工時間内訳 ({{ ct.operations.length }}工程)</h4>
-                  <div class="drawings-table-wrapper">
-                    <table class="data-table ct-table">
-                      <thead>
-                        <tr>
-                          <th style="width: 50px;">順序</th>
-                          <th style="width: 90px;">工程</th>
-                          <th>説明</th>
-                          <th style="width: 80px;" class="text-right">切削速度<br><small>(m/min)</small></th>
-                          <th style="width: 80px;" class="text-right">送り量<br><small>(mm/rev)</small></th>
-                          <th style="width: 80px;" class="text-right">回転数<br><small>(rpm)</small></th>
-                          <th style="width: 90px;" class="text-right">切削時間</th>
-                          <th style="width: 90px;" class="text-right">非切削時間</th>
-                          <th style="width: 90px;" class="text-right">工程合計</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (op of ct.operations; track op.operationId) {
-                          <tr>
-                            <td class="text-center">{{ op.sequenceNo }}</td>
-                            <td>
-                              <span class="badge badge-type">{{ op.operationType }}</span>
-                            </td>
-                            <td>{{ op.description }}</td>
-                            <td class="text-right">{{ op.vc }}</td>
-                            <td class="text-right">{{ op.feedPerRev }}</td>
-                            <td class="text-right">{{ op.rpm }}</td>
-                            <td class="text-right">{{ op.cuttingTimeSec }} 秒</td>
-                            <td class="text-right text-muted">{{ op.nonCuttingTimeSec }} 秒</td>
-                            <td class="text-right font-bold">{{ op.totalTimeSec }} 秒</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              } @else {
-                <div class="no-drawings">
-                  <p>サイクルタイムがまだ計算されていません。「サイクルタイム計算」ボタンをクリックして算出を実行してください。</p>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- NC自動旋盤・加工機別計算エンジンタブ表示エリア (PHASE09) -->
-          @if (activeTab() === 'lathe') {
-            <div class="lathe-box">
-              <div class="section-header-flex">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                    <h3>加工機別サイクルタイム計算</h3>
-                    <span class="badge badge-engine">Engine: {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}</span>
-                  </div>
-                  <p class="section-subtext">使用加工機: <strong>{{ selectedMachine()?.machineName || 'Cincom L20' }}</strong> ({{ selectedMachine()?.model || '-' }})</p>
-                </div>
-                <div class="header-actions" style="display: flex; gap: 0.5rem; align-items: center;">
-                  <button
-                    class="btn btn-secondary btn-sm"
-                    (click)="handleGenerateLatheOperations()"
-                    [disabled]="isGeneratingLatheOps()"
-                  >
-                    {{ isGeneratingLatheOps() ? '工程生成中...' : '自動旋盤工程生成' }}
-                  </button>
-                  <button
-                    class="btn btn-primary btn-sm"
-                    (click)="handleCalculateLatheCycleTime()"
-                    [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
-                  >
-                    {{ isCalculatingLatheCt() ? '計算実行中...' : 'サイクルタイム計算' }}
-                  </button>
-                </div>
-              </div>
-
-              @if (latheSuccessMessage()) {
-                <div class="alert alert-success">
-                  {{ latheSuccessMessage() }}
-                </div>
-              }
-
-              @if (latheErrorMessage()) {
-                <div class="alert alert-error">
-                  {{ latheErrorMessage() }}
-                </div>
-              }
-
-              @if (isLoadingLatheOps()) {
-                <div class="loading">自動旋盤工程一覧を読み込み中...</div>
-              } @else if (latheOperations().length === 0) {
-                <div class="no-drawings">
-                  <p>NC自動旋盤用の加工工程がまだ生成されていません。「自動旋盤工程生成」ボタンをクリックして候補工程を生成してください。</p>
-                </div>
-              } @else {
-                <!-- 計算結果サマリー表示 (計算済みの時) -->
-                @if (latheCycleTime(); as ct) {
-                  <div class="ct-summary-cards" style="margin-bottom: 1.5rem;">
-                    <div class="ct-card">
-                      <span class="ct-card-label">1個あたり総時間 (Cincom L20)</span>
-                      <span class="ct-card-value font-highlight">{{ ct.totalCycleTimeSec }} 秒</span>
-                      <span class="ct-card-sub">({{ (ct.totalCycleTimeSec / 60).toFixed(2) }} 分)</span>
-                    </div>
-                    <div class="ct-card">
-                      <span class="ct-card-label">ロット総加工時間 ({{ ct.quantity }}個)</span>
-                      <span class="ct-card-value font-highlight">{{ ct.totalLotTimeSec }} 秒</span>
-                      <span class="ct-card-sub">({{ (ct.totalLotTimeSec / 60).toFixed(1) }} 分 / {{ (ct.totalLotTimeSec / 3600).toFixed(2) }} 時間)</span>
-                    </div>
-                    <div class="ct-card">
-                      <span class="ct-card-label">切削時間 (1個)</span>
-                      <span class="ct-card-value">{{ ct.cuttingTimeSec }} 秒</span>
-                      <span class="ct-card-sub">割合: {{ ((ct.cuttingTimeSec / ct.totalCycleTimeSec) * 100).toFixed(1) }}%</span>
-                    </div>
-                    <div class="ct-card">
-                      <span class="ct-card-label">非切削時間 (1個)</span>
-                      <span class="ct-card-value">{{ ct.nonCuttingTimeSec }} 秒</span>
-                      <span class="ct-card-sub">工具交換・材料送り・回収等</span>
-                    </div>
-                  </div>
-                }
-
-                <!-- 自動旋盤工程テーブル -->
-                <div class="drawings-table-wrapper">
-                  <table class="data-table lathe-table">
-                    <thead>
-                      <tr>
-                        <th style="width: 50px;">順序</th>
-                        <th style="width: 100px;">加工種類</th>
-                        <th style="width: 80px;" class="text-right">加工径<br><small>(mm)</small></th>
-                        <th style="width: 80px;" class="text-right">加工長<br><small>(mm)</small></th>
-                        <th style="width: 80px;" class="text-right">切削速度<br><small>(m/min)</small></th>
-                        <th style="width: 80px;" class="text-right">送り量<br><small>(mm/rev)</small></th>
-                        <th style="width: 80px;" class="text-right">回転数<br><small>(rpm)</small></th>
-                        <th style="width: 80px;" class="text-right">切削時間</th>
-                        <th style="width: 80px;" class="text-right">非切削時間</th>
-                        <th style="width: 90px;" class="text-right">工程合計</th>
-                        <th style="width: 80px;">状態</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (op of latheOperations(); track op.id) {
-                        <tr>
-                          <td class="text-center font-bold">{{ op.sequenceNo }}</td>
-                          <td>
-                            <span class="badge badge-type">{{ op.processName }}</span>
-                          </td>
-                          <td class="text-right">{{ op.diameter }}</td>
-                          <td class="text-right">{{ op.machiningLength }}</td>
-                          <td class="text-right">{{ op.vc > 0 ? op.vc : '-' }}</td>
-                          <td class="text-right">{{ op.feed > 0 ? op.feed : '-' }}</td>
-                          <td class="text-right">{{ op.rpm > 0 ? op.rpm : '-' }}</td>
-                          <td class="text-right">{{ op.cuttingTimeSec > 0 ? (op.cuttingTimeSec + ' 秒') : '-' }}</td>
-                          <td class="text-right text-muted">{{ op.nonCuttingTimeSec > 0 ? (op.nonCuttingTimeSec + ' 秒') : '-' }}</td>
-                          <td class="text-right font-bold">{{ op.totalTimeSec > 0 ? (op.totalTimeSec + ' 秒') : '-' }}</td>
-                          <td>
-                            @if (op.status === 'CONFIRMED') {
-                              <span class="badge badge-confirmed">確認済</span>
-                            } @else {
-                              <span class="badge badge-review-needed">生成済</span>
-                            }
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </div>
-          }
-
-          <!-- 実績フィードバック・比較タブ表示エリア (PHASE10) -->
-          @if (activeTab() === 'actual') {
-            <div class="actual-box">
-              <div class="section-header-flex">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                    <h3>加工実績・サイクルタイム差異比較</h3>
-                    @if (comparison(); as comp) {
-                      <span
-                        class="badge"
-                        [class.badge-diff-plus]="comp.differenceSec > 0"
-                        [class.badge-diff-minus]="comp.differenceSec <= 0"
-                      >
-                        差異: {{ comp.differenceSec > 0 ? ('+' + comp.differenceSec) : comp.differenceSec }} 秒 ({{ comp.differenceRate > 0 ? ('+' + comp.differenceRate) : comp.differenceRate }}%)
-                      </span>
-                    }
-                  </div>
-                  <p class="section-subtext">見積計算値と現場加工実績を蓄積・比較し、見積精度の改善ループを構築します。</p>
-                </div>
-                <div class="header-actions">
-                  <button class="btn btn-primary btn-sm" (click)="openActualModal()">
-                    ＋ 加工実績を登録
-                  </button>
-                </div>
-              </div>
-
-              @if (actualSuccessMessage()) {
-                <div class="alert alert-success">{{ actualSuccessMessage() }}</div>
-              }
-              @if (actualErrorMessage()) {
-                <div class="alert alert-error">{{ actualErrorMessage() }}</div>
-              }
-
-              <!-- 差異比較サマリカード -->
-              @if (comparison(); as comp) {
-                <div class="ct-summary-cards">
-                  <div class="ct-card">
-                    <span class="ct-card-label">使用設備</span>
-                    <span class="ct-card-value font-highlight">{{ comp.machineName }}</span>
-                    <span class="ct-card-sub">蓄積ロット数: {{ comp.actualCount }} 回</span>
-                  </div>
-
-                  <div class="ct-card">
-                    <span class="ct-card-label">見積CT (1個あたり)</span>
-                    <span class="ct-card-value">{{ comp.estimateSec }} 秒</span>
-                    <span class="ct-card-sub">理論計算サイクルタイム</span>
-                  </div>
-
-                  <div class="ct-card">
-                    <span class="ct-card-label">実績CT (加重平均/個)</span>
-                    <span class="ct-card-value font-bold">{{ comp.actualSec }} 秒</span>
-                    <span class="ct-card-sub">最終加工日: {{ comp.latestActualDate || '-' }}</span>
-                  </div>
-
-                  <div
-                    class="ct-card"
-                    [class.ct-card-diff-plus]="comp.differenceSec > 0"
-                    [class.ct-card-diff-minus]="comp.differenceSec <= 0"
-                  >
-                    <span class="ct-card-label">差異 (実績 - 見積)</span>
-                    <span class="ct-card-value">
-                      {{ comp.differenceSec > 0 ? ('+' + comp.differenceSec) : comp.differenceSec }} 秒
-                    </span>
-                    <span class="ct-card-sub font-bold">
-                      差異率: {{ comp.differenceRate > 0 ? ('+' + comp.differenceRate) : comp.differenceRate }} %
-                    </span>
-                  </div>
-                </div>
-              } @else if (actualCycleTimes().length === 0) {
-                <div class="no-drawings mt-2">
-                  <p>まだ加工実績が登録されていません。「＋ 加工実績を登録」ボタンから加工日・実加工時間・ロット数量を入力してください。</p>
-                </div>
-              }
-
-              <!-- 実績履歴一覧テーブル -->
-              <div class="actual-history-section mt-4">
-                <div class="section-header-flex">
-                  <h4>加工実績履歴 ({{ actualCycleTimes().length }}件)</h4>
-                </div>
-
-                @if (isLoadingActual()) {
-                  <div class="loading">実績データを読み込み中...</div>
-                } @else if (actualCycleTimes().length === 0) {
-                  <p class="no-drawings">履歴レコードはありません。</p>
-                } @else {
-                  <div class="drawings-table-wrapper">
-                    <table class="data-table actual-table">
-                      <thead>
-                        <tr>
-                          <th style="width: 50px;">No</th>
-                          <th style="width: 100px;">加工日</th>
-                          <th>設備</th>
-                          <th style="width: 90px;" class="text-right">加工数量</th>
-                          <th style="width: 110px;" class="text-right">実績1個CT</th>
-                          <th style="width: 110px;" class="text-right">段取時間</th>
-                          <th style="width: 100px;">作業担当者</th>
-                          <th>備考 / 特記事項</th>
-                          <th style="width: 70px;">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of actualCycleTimes(); track item.id; let i = $index) {
-                          <tr>
-                            <td class="text-center font-bold">{{ i + 1 }}</td>
-                            <td>{{ item.productionDate || '-' }}</td>
-                            <td>{{ item.machineName || '未指定' }}</td>
-                            <td class="text-right font-bold">{{ item.quantity }} 個</td>
-                            <td class="text-right font-highlight">{{ item.actualCycleTimeSec }} 秒</td>
-                            <td class="text-right text-muted">{{ item.setupTimeSec > 0 ? (item.setupTimeSec + ' 秒') : '-' }}</td>
-                            <td>{{ item.operatorName || '-' }}</td>
-                            <td class="notes-cell">{{ item.notes || '-' }}</td>
-                            <td>
-                              <button
-                                class="btn btn-danger btn-sm"
-                                (click)="handleDeleteActualCycleTime(item.id)"
-                              >
-                                削除
-                              </button>
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                }
-              </div>
-            </div>
-          }
-        } @else {
-          <div class="no-analysis-box">
-            <p>図面のAI解析がまだ実行されていません。「AI解析」ボタンをクリックして図面解析を実行してください。</p>
-          </div>
-        }
       </div>
+    }
 
-      <!-- Feature編集モーダル -->
-      @if (editingFeature(); as target) {
-        <div class="modal-backdrop">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3>加工Feature編集 (No.{{ target.sequenceNo }})</h3>
-              <button class="modal-close" (click)="closeEditModal()">&times;</button>
-            </div>
-            <div class="modal-body">
+    <!-- 工程編集モーダル -->
+    @if (editingOperation(); as targetOp) {
+      <div class="modal-backdrop">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>加工工程候補の編集</h3>
+            <button class="modal-close" (click)="closeEditOperationModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
               <div class="form-group">
-                <label>Feature種類</label>
-                <select [(ngModel)]="editForm.featureType" class="form-control">
-                  <option value="OD">OD (外径加工)</option>
-                  <option value="ID">ID (内径加工)</option>
-                  <option value="DRILL">DRILL (ドリル穴あけ)</option>
-                  <option value="BORE">BORE (ボーリング仕上げ)</option>
-                  <option value="THREAD">THREAD (ねじ切り)</option>
-                  <option value="GROOVE">GROOVE (溝入れ)</option>
-                  <option value="CHAMFER">CHAMFER (面取り)</option>
-                  <option value="UNKNOWN">UNKNOWN (不明・その他)</option>
+                <label>工程種類</label>
+                <input
+                  type="text"
+                  [value]="targetOp.operationType"
+                  disabled
+                  class="form-control"
+                  style="background: #edf2f7;"
+                />
+              </div>
+              <div class="form-group">
+                <label>工程順序</label>
+                <input
+                  type="number"
+                  [(ngModel)]="editOperationForm.sequenceNo"
+                  class="form-control"
+                  min="1"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>説明・加工内容</label>
+              <input
+                type="text"
+                [(ngModel)]="editOperationForm.description"
+                class="form-control"
+                placeholder="工程内容の説明"
+              />
+            </div>
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>設備分類</label>
+                <input
+                  type="text"
+                  [(ngModel)]="editOperationForm.machineType"
+                  class="form-control"
+                  placeholder="例: CNC_LATHE"
+                />
+              </div>
+              <div class="form-group">
+                <label>状態</label>
+                <select [(ngModel)]="editOperationForm.status" class="form-control">
+                  <option value="GENERATED">GENERATED (生成済)</option>
+                  <option value="CONFIRMED">CONFIRMED (確認済)</option>
+                  <option value="MANUAL">MANUAL (手動)</option>
                 </select>
               </div>
-
-              <div class="form-group">
-                <label>説明</label>
-                <input
-                  type="text"
-                  [(ngModel)]="editForm.description"
-                  class="form-control"
-                  placeholder="部位の説明"
-                />
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>径 (mm)</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="editForm.diameter"
-                    class="form-control"
-                    min="0"
-                    step="0.01"
-                    placeholder="例: 30"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>長さ (mm)</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="editForm.length"
-                    class="form-control"
-                    min="0"
-                    step="0.01"
-                    placeholder="例: 50"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>深さ (mm)</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="editForm.depth"
-                    class="form-control"
-                    min="0"
-                    step="0.01"
-                    placeholder="例: 20"
-                  />
-                </div>
-              </div>
-
-              <div class="form-group checkbox-group">
-                <label class="checkbox-label">
-                  <input
-                    type="checkbox"
-                    [(ngModel)]="editForm.needsReview"
-                  />
-                  <span>要確認（未確認状態にする）</span>
-                </label>
-                <span class="help-text">チェックを外すと「確認済み」として扱われます。</span>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" (click)="closeEditModal()">キャンセル</button>
-              <button class="btn btn-primary" (click)="saveFeature()">保存する</button>
             </div>
           </div>
-        </div>
-      }
-
-      <!-- Operation編集モーダル -->
-      @if (editingOperation(); as targetOp) {
-        <div class="modal-backdrop">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3>加工工程編集 (No.{{ targetOp.sequenceNo }})</h3>
-              <button class="modal-close" (click)="closeEditOperationModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                <div class="form-group">
-                  <label>工程種類</label>
-                  <input
-                    type="text"
-                    [value]="targetOp.operationType"
-                    disabled
-                    class="form-control"
-                    style="background: #edf2f7;"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>工程順序</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="editOperationForm.sequenceNo"
-                    class="form-control"
-                    min="1"
-                  />
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>説明・加工内容</label>
-                <input
-                  type="text"
-                  [(ngModel)]="editOperationForm.description"
-                  class="form-control"
-                  placeholder="工程内容の説明"
-                />
-              </div>
-
-              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                <div class="form-group">
-                  <label>設備分類</label>
-                  <input
-                    type="text"
-                    [(ngModel)]="editOperationForm.machineType"
-                    class="form-control"
-                    placeholder="例: CNC_LATHE"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>状態</label>
-                  <select [(ngModel)]="editOperationForm.status" class="form-control">
-                    <option value="GENERATED">GENERATED (生成済)</option>
-                    <option value="CONFIRMED">CONFIRMED (確認済)</option>
-                    <option value="MANUAL">MANUAL (手動)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" (click)="closeEditOperationModal()">キャンセル</button>
-              <button class="btn btn-primary" (click)="saveOperation()">保存する</button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- 実績登録モーダル (PHASE10) -->
-      @if (showActualModal()) {
-        <div class="modal-backdrop">
-          <div class="modal-content modal-actual">
-            <div class="modal-header">
-              <h3>加工実績の登録</h3>
-              <button class="modal-close" (click)="closeActualModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-              @if (actualErrorMessage()) {
-                <div class="alert alert-error">{{ actualErrorMessage() }}</div>
-              }
-
-              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                <div class="form-group">
-                  <label>加工設備</label>
-                  <select [(ngModel)]="actualForm.machineId" class="form-control">
-                    <option [ngValue]="null">（未指定）</option>
-                    @for (m of machines(); track m.id) {
-                      <option [ngValue]="m.id">{{ m.machineName }} ({{ m.maker || '-' }})</option>
-                    }
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>加工日</label>
-                  <input
-                    type="date"
-                    [(ngModel)]="actualForm.productionDate"
-                    class="form-control"
-                  />
-                </div>
-              </div>
-
-              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                <div class="form-group">
-                  <label>加工数量 (個) *</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="actualForm.quantity"
-                    (ngModelChange)="onTotalTimeChange()"
-                    class="form-control"
-                    min="1"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>入力方式</label>
-                  <select [(ngModel)]="actualInputMode" class="form-control">
-                    <option value="unit">1個あたり秒を直接入力</option>
-                    <option value="total">ロット総加工時間から算出</option>
-                  </select>
-                </div>
-              </div>
-
-              @if (actualInputMode() === 'total') {
-                <div class="form-group highlight-box">
-                  <label>ロット総加工時間 (秒) *</label>
-                  <input
-                    type="number"
-                    [ngModel]="totalMachiningTimeSec()"
-                    (ngModelChange)="totalMachiningTimeSec.set($event); onTotalTimeChange()"
-                    class="form-control"
-                    min="0"
-                    step="0.1"
-                    placeholder="例: 5250 (100個の場合 52.5秒/個)"
-                  />
-                  <small class="help-text">
-                    算出値: 1個あたり約 {{ actualForm.actualCycleTimeSec }} 秒
-                  </small>
-                </div>
-              } @else {
-                <div class="form-group">
-                  <label>実績サイクルタイム (1個あたり秒) *</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="actualForm.actualCycleTimeSec"
-                    class="form-control font-bold"
-                    min="0"
-                    step="0.001"
-                    placeholder="例: 52.5"
-                  />
-                </div>
-              }
-
-              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                <div class="form-group">
-                  <label>段取り時間 (秒)</label>
-                  <input
-                    type="number"
-                    [(ngModel)]="actualForm.setupTimeSec"
-                    class="form-control"
-                    min="0"
-                    step="1"
-                    placeholder="例: 1800 (30分)"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>作業担当者</label>
-                  <input
-                    type="text"
-                    [(ngModel)]="actualForm.operatorName"
-                    class="form-control"
-                    placeholder="例: 佐藤"
-                  />
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>備考 / 差異要因（工具摩耗・チャック調整など）</label>
-                <textarea
-                  [(ngModel)]="actualForm.notes"
-                  class="form-control"
-                  rows="2"
-                  placeholder="メモや特記事項を入力"
-                ></textarea>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" (click)="closeActualModal()">キャンセル</button>
-              <button
-                class="btn btn-primary"
-                (click)="handleCreateActualCycleTime()"
-                [disabled]="isSubmittingActual()"
-              >
-                {{ isSubmittingActual() ? '登録中...' : '実績を登録する' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <div class="detail-section">
-        <h2>登録・更新情報</h2>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <span class="label">登録日時</span>
-            <span class="value">{{ q.createdAt | date: 'yyyy/MM/dd HH:mm:ss' }}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="label">更新日時</span>
-            <span class="value">{{ (q.updatedAt | date: 'yyyy/MM/dd HH:mm:ss') || '-' }}</span>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="closeEditOperationModal()">キャンセル</button>
+            <button class="btn btn-primary" (click)="saveOperation()">保存する</button>
           </div>
         </div>
       </div>
-    </div>
+    }
+
+    <!-- 実績登録モーダル (PHASE10) -->
+    @if (showActualModal()) {
+      <div class="modal-backdrop">
+        <div class="modal-content modal-actual">
+          <div class="modal-header">
+            <h3>加工実績の登録</h3>
+            <button class="modal-close" (click)="closeActualModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            @if (actualErrorMessage()) {
+              <div class="alert alert-error">{{ actualErrorMessage() }}</div>
+            }
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>加工設備</label>
+                <select [(ngModel)]="actualForm.machineId" class="form-control">
+                  <option [ngValue]="null">（未指定）</option>
+                  @for (m of machines(); track m.id) {
+                    <option [ngValue]="m.id">{{ m.machineName }} ({{ m.maker || '-' }})</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>加工日</label>
+                <input
+                  type="date"
+                  [(ngModel)]="actualForm.productionDate"
+                  class="form-control"
+                />
+              </div>
+            </div>
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>加工数量 (個) *</label>
+                <input
+                  type="number"
+                  [(ngModel)]="actualForm.quantity"
+                  (ngModelChange)="onTotalTimeChange()"
+                  class="form-control"
+                  min="1"
+                />
+              </div>
+              <div class="form-group">
+                <label>入力方式</label>
+                <select [(ngModel)]="actualInputMode" class="form-control">
+                  <option value="unit">1個あたり秒を直接入力</option>
+                  <option value="total">ロット総加工時間から算出</option>
+                </select>
+              </div>
+            </div>
+
+            @if (actualInputMode() === 'total') {
+              <div class="form-group highlight-box">
+                <label>ロット総加工時間 (秒) *</label>
+                <input
+                  type="number"
+                  [ngModel]="totalMachiningTimeSec()"
+                  (ngModelChange)="totalMachiningTimeSec.set($event); onTotalTimeChange()"
+                  class="form-control"
+                  min="0"
+                  step="0.1"
+                  placeholder="例: 5250 (100個の場合 52.5秒/個)"
+                />
+                <small class="help-text">
+                  算出値: 1個あたり約 {{ actualForm.actualCycleTimeSec }} 秒
+                </small>
+              </div>
+            } @else {
+              <div class="form-group">
+                <label>実績サイクルタイム (1個あたり秒) *</label>
+                <input
+                  type="number"
+                  [(ngModel)]="actualForm.actualCycleTimeSec"
+                  class="form-control font-bold"
+                  min="0"
+                  step="0.001"
+                  placeholder="例: 52.5"
+                />
+              </div>
+            }
+
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+              <div class="form-group">
+                <label>段取り時間 (秒)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="actualForm.setupTimeSec"
+                  class="form-control"
+                  min="0"
+                  step="1"
+                  placeholder="例: 1800 (30分)"
+                />
+              </div>
+              <div class="form-group">
+                <label>作業担当者</label>
+                <input
+                  type="text"
+                  [(ngModel)]="actualForm.operatorName"
+                  class="form-control"
+                  placeholder="例: 佐藤"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>備考 / 差異要因（工具摩耗・チャック調整など）</label>
+              <textarea
+                [(ngModel)]="actualForm.notes"
+                class="form-control"
+                rows="2"
+                placeholder="メモや特記事項を入力"
+              ></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="closeActualModal()">キャンセル</button>
+            <button
+              class="btn btn-primary"
+              (click)="handleCreateActualCycleTime()"
+              [disabled]="isSubmittingActual()"
+            >
+              {{ isSubmittingActual() ? '登録中...' : '実績を登録する' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
   }
 </div>

@@ -332,13 +332,10 @@
   animation: pulse 1.5s infinite;
 }
 
-.mt-2 {
-  margin-top: 0.5rem;
-}
-
-.mt-4 {
-  margin-top: 1.5rem;
-}
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
 
 /* PHASE10: 実績フィードバック・差異表示スタイル */
 .badge-diff-plus {
@@ -394,6 +391,304 @@
 
 .modal-actual {
   max-width: 550px;
+}
+
+/* ============================================================
+   PHASE10.5: 操作フロー改善 & UI整理スタイル
+   ============================================================ */
+
+/* ヘッダー周り */
+.header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.quote-number-tag {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  background: #edf2f7;
+  color: #4a5568;
+  border-radius: 4px;
+  border: 1px solid #cbd5e0;
+}
+
+/* ワークフローステッパー (STEP 1 - 4) */
+.workflow-stepper {
+  display: flex;
+  align-items: stretch;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
+}
+
+.step-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  min-width: 130px;
+  text-align: center;
+
+  &:hover {
+    background: #f7fafc;
+  }
+
+  &.active {
+    background: #ebf8ff;
+    border: 1px solid #bee3f8;
+
+    .step-num {
+      color: #2b6cb0;
+      font-weight: 700;
+    }
+
+    .step-label {
+      color: #2b6cb0;
+      font-weight: 700;
+    }
+  }
+}
+
+.step-num {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #a0aec0;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.15rem;
+}
+
+.step-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 0.3rem;
+}
+
+.step-badge {
+  font-size: 0.75rem;
+}
+
+.step-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  color: #cbd5e0;
+  font-weight: bold;
+  user-select: none;
+}
+
+/* 常時表示 基本情報サマリカード */
+.summary-card {
+  background: #fff;
+  border-left: 4px solid #2b6cb0;
+
+  .summary-card-inner {
+    padding: 1rem 1.25rem;
+  }
+}
+
+/* パネル */
+.content-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #edf2f7;
+
+  h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+    color: #2d3748;
+  }
+
+  .panel-subtext {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.8rem;
+    color: #718096;
+  }
+}
+
+/* サブタブ (Feature / 工程) */
+.sub-tab-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sub-tab-btn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #cbd5e0;
+  background: #f7fafc;
+  color: #4a5568;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #edf2f7;
+  }
+
+  &.active {
+    background: #2b6cb0;
+    color: #fff;
+    border-color: #2b6cb0;
+    font-weight: 600;
+  }
+}
+
+/* ステップ遷移フッターバー */
+.step-next-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #edf2f7;
+  border-radius: 0 0 8px 8px;
+}
+
+/* 結果表示 Hero KPI カード (最重要表示) */
+.result-hero-card {
+  background: linear-gradient(135deg, #f7fafc 0%, #ebf8ff 100%);
+  border: 2px solid #bee3f8;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(43, 108, 176, 0.08);
+
+  .hero-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px dashed #cbd5e0;
+    padding-bottom: 0.5rem;
+
+    .hero-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #2b6cb0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-engine {
+      font-size: 0.8rem;
+      color: #718096;
+      background: #fff;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+  }
+
+  .hero-main-kpi {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem 0;
+  }
+
+  .hero-kpi-block {
+    text-align: center;
+  }
+
+  .hero-kpi-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.25rem;
+  }
+
+  .hero-kpi-value {
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: #1a365d;
+    line-height: 1.1;
+
+    .hero-kpi-unit {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #4a5568;
+      margin-left: 0.25rem;
+    }
+  }
+
+  .hero-kpi-sub {
+    font-size: 0.85rem;
+    color: #718096;
+    margin-top: 0.25rem;
+  }
+
+  .hero-sub-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .hero-sub-item {
+    background: #fff;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+
+    .sub-lbl {
+      font-size: 0.75rem;
+      color: #718096;
+      display: block;
+      margin-bottom: 0.2rem;
+    }
+
+    .sub-val {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #2d3748;
+    }
+  }
+}
+
+/* 追加バッジ */
+.badge-highlight {
+  background: #ebf8ff;
+  color: #2b6cb0;
+  border: 1px solid #bee3f8;
+  font-weight: 700;
+}
+
+.badge-registered {
+  background: #e6fffa;
+  color: #234e52;
+  border: 1px solid #b2f5ea;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 
