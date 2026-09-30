@@ -3,6 +3,7 @@ import { drawingRepository } from '../repositories/drawing.repository';
 import { drawingAnalysisRepository } from '../repositories/drawing-analysis.repository';
 import { cycleTimeRepository } from '../repositories/cycle-time.repository';
 import { latheRepository } from '../repositories/lathe.repository';
+import { materialRepository } from '../repositories/material.repository';
 import { CalculationEngineFactory } from '../calculation-engine/engine.factory';
 import {
   CycleTimeResultDto,
@@ -100,6 +101,13 @@ export class CalculationService {
       }
     }
 
+    if (materialName === 'DEFAULT') {
+      const matInfo = await materialRepository.findByQuoteId(quoteId);
+      if (matInfo && matInfo.material_name) {
+        materialName = matInfo.material_name;
+      }
+    }
+
     // 3. 設備取得
     const machine = await latheRepository.getQuoteSelectedMachine(quoteId);
     const engineType = machine?.calculation_engine_type || 'AUTOMATIC_LATHE';
@@ -125,9 +133,14 @@ export class CalculationService {
       cuttingTimeSec: result.cuttingTimeSec,
       nonCuttingTimeSec: result.nonCuttingTimeSec,
       totalCycleTimeSec: result.totalTimeSec,
+      theoreticalCycleTime: result.theoreticalCycleTime ?? result.totalTimeSec,
+      correctionFactor: result.correctionFactor ?? 1.0,
+      correctedCycleTime: result.correctedCycleTime ?? result.totalTimeSec,
+      correctionSource: result.correctionSource ?? null,
+      correctionApplied: result.correctionApplied ?? false,
       quantity: quote.quantity > 0 ? quote.quantity : 1,
       totalLotTimeSec: result.totalLotTimeSec,
-      calculationVersion: '2.0.0-PHASE09',
+      calculationVersion: '3.0.0-PHASE16',
     });
 
     return {
@@ -140,6 +153,13 @@ export class CalculationService {
       nonCuttingTimeSec: result.nonCuttingTimeSec,
       totalCycleTimeSec: result.totalTimeSec,
       totalLotTimeSec: result.totalLotTimeSec,
+      theoreticalCycleTime: result.theoreticalCycleTime,
+      correctionFactor: result.correctionFactor,
+      correctedCycleTime: result.correctedCycleTime,
+      correctionSource: result.correctionSource,
+      correctionApplied: result.correctionApplied,
+      confidenceLevel: result.confidenceLevel,
+      correctionReason: result.correctionReason,
       operations: result.operationDetails,
     };
   }

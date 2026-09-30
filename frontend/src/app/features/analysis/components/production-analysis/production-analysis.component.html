@@ -1,0 +1,331 @@
+<div class="analysis-container">
+  <!-- ページヘッダー -->
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">
+        <a routerLink="/quotes">見積案件一覧</a>
+        <span> &gt; </span>
+        <span>生産実績統計分析 (PHASE15)</span>
+      </div>
+      <h2>生産実績統計分析 &amp; 補正係数信頼度評価</h2>
+      <p class="page-subtext">
+        蓄積された実加工データ（sadoa実績・評価履歴）を分析し、設備・材質・径・工程別の加工時間傾向と補正係数候補を算出します。
+      </p>
+    </div>
+    <div class="header-actions">
+      <button
+        class="btn btn-primary"
+        (click)="handleExecuteAnalysis()"
+        [disabled]="isExecuting()"
+      >
+        {{ isExecuting() ? '分析実行中...' : '📊 統計分析を再実行・最新化' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- 注意バナー (指示書第3.1節: 自動適用なし) -->
+  <div class="notice-banner mb-4">
+    <div class="notice-icon">⚠️</div>
+    <div class="notice-text">
+      <strong>【開発方針】補正係数の自動適用は行いません (PHASE15)</strong>
+      <p>
+        少数データによる誤補正や異常値の偏りを防止するため、本フェーズでは分析・候補生成・信頼度評価の蓄積のみを行います。
+        技術者による妥当性確認と承認フローを経た後、次フェーズ（PHASE16）でCalculation Engineへ組み込まれます。
+      </p>
+    </div>
+  </div>
+
+  @if (message()) {
+    <div class="alert alert-success mb-3">{{ message() }}</div>
+  }
+  @if (errorMessage()) {
+    <div class="alert alert-error mb-3">{{ errorMessage() }}</div>
+  }
+
+  <!-- 1. 全体概要 KPIカード (指示書第14.1節) -->
+  @if (summary(); as s) {
+    <div class="summary-hero-card mb-4">
+      <div class="hero-header">
+        <span class="hero-title">全体実績統計概要 (社内NC自動旋盤)</span>
+        <span class="badge" [class.badge-success]="s.confidenceLevel === 'HIGH'" [class.badge-warning]="s.confidenceLevel === 'MEDIUM'" [class.badge-secondary]="s.confidenceLevel === 'LOW'">
+          全体信頼度: {{ s.confidenceLevel }}
+        </span>
+      </div>
+      <div class="hero-grid">
+        <div class="hero-item">
+          <span class="lbl">総蓄積実績データ数</span>
+          <span class="val font-highlight">{{ s.sampleCount | number }} <small>件</small></span>
+          <span class="sub">sadoa実績DB連携済</span>
+        </div>
+        <div class="hero-item">
+          <span class="lbl">平均補正倍率</span>
+          <span class="val font-bold">&times;{{ s.averageFactor }}</span>
+          <span class="sub">理論CTに対する実績比</span>
+        </div>
+        <div class="hero-item">
+          <span class="lbl">中央値 (Median)</span>
+          <span class="val font-bold">&times;{{ s.medianFactor }}</span>
+          <span class="sub">外れ値を除外した実質中心</span>
+        </div>
+        <div class="hero-item">
+          <span class="lbl">ばらつき (標準偏差)</span>
+          <span class="val">{{ s.stddevFactor !== null ? ('&plusmn;' + s.stddevFactor) : '-' }}</span>
+          <span class="sub">標準偏差 &sigma;</span>
+        </div>
+        <div class="hero-item">
+          <span class="lbl">倍率範囲 (Min ～ Max)</span>
+          <span class="val">{{ s.minFactor }} ～ {{ s.maxFactor }}</span>
+          <span class="sub">最小 ～ 最大倍率</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- タブナビゲーション -->
+  <div class="tab-nav mb-3">
+    <button class="tab-btn" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">
+      全分析一覧
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'machine'" (click)="activeTab.set('machine')">
+      設備別分析 ({{ machines().length }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'material'" (click)="activeTab.set('material')">
+      材料別分析 ({{ materials().length }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'diameter'" (click)="activeTab.set('diameter')">
+      径別分析 ({{ diameters().length }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'process'" (click)="activeTab.set('process')">
+      工程別分析 ({{ processes().length }})
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'candidates'" (click)="activeTab.set('candidates')">
+      補正係数候補 ({{ candidates().length }})
+    </button>
+  </div>
+
+  <!-- 2. 設備別分析 (指示書第5.1節, 第14.2節) -->
+  @if (activeTab() === 'all' || activeTab() === 'machine') {
+    <div class="card mb-4">
+      <div class="card-header">
+        <h3>設備別加工時間傾向分析 (Citizen Cincom)</h3>
+        <p class="card-subtext">各設備の剛性・仕様（L20, M16, M32）による加工時間の偏りを分析します。</p>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>加工機</th>
+              <th class="text-right" style="width: 120px;">実績件数</th>
+              <th class="text-right" style="width: 130px;">平均補正倍率</th>
+              <th class="text-right" style="width: 120px;">中央値</th>
+              <th class="text-right" style="width: 120px;">ばらつき (&sigma;)</th>
+              <th style="width: 100px;">信頼度</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of machines(); track m.machine) {
+              <tr>
+                <td><strong>{{ m.machine }}</strong></td>
+                <td class="text-right font-bold">{{ m.count | number }} 件</td>
+                <td class="text-right font-highlight font-bold">&times;{{ m.factor }}</td>
+                <td class="text-right">&times;{{ m.medianFactor }}</td>
+                <td class="text-right text-muted">{{ m.stddev !== null ? ('&plusmn;' + m.stddev) : '-' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="m.confidenceLevel === 'HIGH'" [class.badge-warning]="m.confidenceLevel === 'MEDIUM'" [class.badge-secondary]="m.confidenceLevel === 'LOW'">
+                    {{ m.confidenceLevel }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- 3. 材料別分析 (指示書第5.2節, 第14.3節) -->
+  @if (activeTab() === 'all' || activeTab() === 'material') {
+    <div class="card mb-4">
+      <div class="card-header">
+        <h3>材料別加工時間傾向分析 (SUS304 / S45C / アルミ等)</h3>
+        <p class="card-subtext">材質による切削抵抗・刃具摩耗に起因する加工時間差異を分析します。</p>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>材料グループ</th>
+              <th class="text-right" style="width: 120px;">実績件数</th>
+              <th class="text-right" style="width: 130px;">平均補正倍率</th>
+              <th class="text-right" style="width: 120px;">中央値</th>
+              <th class="text-right" style="width: 120px;">ばらつき (&sigma;)</th>
+              <th style="width: 100px;">信頼度</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (mat of materials(); track mat.material) {
+              <tr>
+                <td><strong>{{ mat.material }}</strong></td>
+                <td class="text-right font-bold">{{ mat.count | number }} 件</td>
+                <td class="text-right font-highlight font-bold">&times;{{ mat.factor }}</td>
+                <td class="text-right">&times;{{ mat.medianFactor }}</td>
+                <td class="text-right text-muted">{{ mat.stddev !== null ? ('&plusmn;' + mat.stddev) : '-' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="mat.confidenceLevel === 'HIGH'" [class.badge-warning]="mat.confidenceLevel === 'MEDIUM'" [class.badge-secondary]="mat.confidenceLevel === 'LOW'">
+                    {{ mat.confidenceLevel }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- 4. 材料径別分析 (指示書第5.3節) -->
+  @if (activeTab() === 'all' || activeTab() === 'diameter') {
+    <div class="card mb-4">
+      <div class="card-header">
+        <h3>材料径別加工時間傾向分析 (φ3～φ10 / φ10～φ20 / φ20以上)</h3>
+        <p class="card-subtext">材料径の太さによる剛性・たわみ抑制や回転数制限による影響を分析します。</p>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>材料径範囲</th>
+              <th class="text-right" style="width: 120px;">実績件数</th>
+              <th class="text-right" style="width: 130px;">平均補正倍率</th>
+              <th class="text-right" style="width: 120px;">中央値</th>
+              <th class="text-right" style="width: 120px;">ばらつき (&sigma;)</th>
+              <th style="width: 100px;">信頼度</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of diameters(); track d.range) {
+              <tr>
+                <td><strong>{{ d.range }}</strong></td>
+                <td class="text-right font-bold">{{ d.count | number }} 件</td>
+                <td class="text-right font-highlight font-bold">&times;{{ d.factor }}</td>
+                <td class="text-right">&times;{{ d.medianFactor }}</td>
+                <td class="text-right text-muted">{{ d.stddev !== null ? ('&plusmn;' + d.stddev) : '-' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="d.confidenceLevel === 'HIGH'" [class.badge-warning]="d.confidenceLevel === 'MEDIUM'" [class.badge-secondary]="d.confidenceLevel === 'LOW'">
+                    {{ d.confidenceLevel }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- 5. 工程別分析 (指示書第5.4節) -->
+  @if (activeTab() === 'all' || activeTab() === 'process') {
+    <div class="card mb-4">
+      <div class="card-header">
+        <h3>工程別加工時間傾向分析 (外径 / 穴あけ / ねじ / 溝 / 突切り)</h3>
+        <p class="card-subtext">自動旋盤特有の工程種類ごとの理論計算値との乖離度合いを分析します。</p>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>工程種類</th>
+              <th class="text-right" style="width: 120px;">実績件数</th>
+              <th class="text-right" style="width: 130px;">平均補正倍率</th>
+              <th class="text-right" style="width: 120px;">中央値</th>
+              <th class="text-right" style="width: 120px;">ばらつき (&sigma;)</th>
+              <th style="width: 100px;">信頼度</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of processes(); track p.process) {
+              <tr>
+                <td><strong>{{ p.process }}</strong></td>
+                <td class="text-right font-bold">{{ p.count | number }} 件</td>
+                <td class="text-right font-highlight font-bold">&times;{{ p.factor }}</td>
+                <td class="text-right">&times;{{ p.medianFactor }}</td>
+                <td class="text-right text-muted">{{ p.stddev !== null ? ('&plusmn;' + p.stddev) : '-' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="p.confidenceLevel === 'HIGH'" [class.badge-warning]="p.confidenceLevel === 'MEDIUM'" [class.badge-secondary]="p.confidenceLevel === 'LOW'">
+                    {{ p.confidenceLevel }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- 6. 補正係数候補 & 信頼度評価 (指示書第14.4節) -->
+  @if (activeTab() === 'all' || activeTab() === 'candidates') {
+    <div class="card mb-4">
+      <div class="card-header">
+        <div>
+          <h3>NC自動旋盤 補正係数候補 &amp; 信頼度評価一覧</h3>
+          <p class="card-subtext">
+            統計分析から自動生成された補正係数候補です。PHASE15では自動適用されず、承認保留（未適用）状態で蓄積されます。
+          </p>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">No</th>
+              <th>設備</th>
+              <th>材料</th>
+              <th>対象工程</th>
+              <th class="text-right" style="width: 130px;">補正倍率候補</th>
+              <th class="text-right" style="width: 120px;">算出元件数</th>
+              <th style="width: 110px;">信頼度</th>
+              <th style="width: 120px;">適用ステータス</th>
+              <th style="width: 110px;" class="text-center">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of candidates(); track c.id || $index; let i = $index) {
+              <tr>
+                <td class="text-center font-bold">{{ i + 1 }}</td>
+                <td><strong>{{ c.machineName }}</strong></td>
+                <td>{{ c.materialName }}</td>
+                <td><span class="badge badge-type">{{ c.processType }}</span></td>
+                <td class="text-right font-highlight font-bold">&times;{{ c.factor }}</td>
+                <td class="text-right font-bold">{{ c.sampleCount }} 件</td>
+                <td>
+                  <span class="badge" [class.badge-success]="c.confidenceLevel === 'HIGH'" [class.badge-warning]="c.confidenceLevel === 'MEDIUM'" [class.badge-secondary]="c.confidenceLevel === 'LOW'">
+                    {{ c.confidenceLevel }}
+                  </span>
+                </td>
+                <td>
+                  @if (c.approved) {
+                    <span class="badge badge-confirmed">承認済</span>
+                  } @else {
+                    <span class="badge badge-review-needed">未適用 (候補)</span>
+                  }
+                </td>
+                <td class="text-center">
+                  @if (c.approved) {
+                    <button class="btn btn-outline-danger btn-xs" (click)="handleToggleApproval(c)">
+                      承認解除
+                    </button>
+                  } @else {
+                    <button class="btn btn-success btn-xs" (click)="handleToggleApproval(c)">
+                      ✓ 承認する
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

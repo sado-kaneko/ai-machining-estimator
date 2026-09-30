@@ -919,3 +919,356 @@
   }
 }
 
+/* ==========================================================================
+   PHASE16: 補正Engine ステップフロー & ログスタイル
+   ========================================================================== */
+.correction-flow-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  border: 1px solid #cbd5e0;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+
+  .flow-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem 0.75rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+    min-height: 110px;
+    transition: all 0.2s ease;
+
+    &.applied {
+      border-color: #3182ce;
+      background: #ebf8ff;
+    }
+
+    &.final-result {
+      background: linear-gradient(135deg, #ebf8ff 0%, #bee3f8 100%);
+      border: 2px solid #3182ce;
+      box-shadow: 0 4px 12px rgba(49, 130, 206, 0.15);
+    }
+
+    .flow-step-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 0.4rem;
+    }
+
+    .flow-value-box {
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+
+      .flow-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #2d3748;
+
+        &.highlight {
+          color: #2b6cb0;
+          font-size: 2rem;
+        }
+      }
+
+      .flow-unit {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #718096;
+
+        &.highlight {
+          color: #2b6cb0;
+        }
+      }
+    }
+
+    .flow-sub {
+      font-size: 0.75rem;
+      color: #718096;
+      margin-top: 0.35rem;
+
+      &.highlight {
+        font-weight: 700;
+        color: #2c5282;
+      }
+    }
+
+    .flow-badge-wrapper {
+      margin-top: 0.35rem;
+    }
+  }
+
+  .flow-operator {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #a0aec0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.correction-log-banner {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #a0aec0;
+  border-radius: 8px;
+  padding: 0.85rem 1.15rem;
+
+  &.banner-applied {
+    border-left-color: #38a169;
+    background: #f0fff4;
+  }
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .log-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #2d3748;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+  }
+
+  .log-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.6rem;
+
+    .log-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+
+      &.full-width {
+        grid-column: 1 / -1;
+      }
+
+      .log-label {
+        color: #718096;
+      }
+
+      .log-val {
+        color: #2d3748;
+      }
+    }
+  }
+}
+
+.correction-history-section {
+  .history-summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4a5568;
+    padding: 0.5rem 0.75rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px dashed #cbd5e0;
+
+    &:hover {
+      background: #edf2f7;
+    }
+  }
+
+  .history-table {
+    font-size: 0.82rem;
+  }
+}
+
+.full-grid {
+  grid-column: 1 / -1;
+}
+
+/* ==========================================================================
+   PHASE17: STEP 5 見積確定・根拠・履歴管理スタイル
+   ========================================================================== */
+.complete-status-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e0;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+
+  &.is-completed {
+    border-color: #38a169;
+    background: linear-gradient(180deg, #f0fff4 0%, #ffffff 100%);
+  }
+
+  .status-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #edf2f7;
+    padding-bottom: 0.85rem;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.6rem;
+    }
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+
+      .status-badge {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #2d3748;
+
+        &.badge-completed {
+          color: #276749;
+        }
+      }
+
+      .completed-meta {
+        font-size: 0.8rem;
+        color: #718096;
+      }
+    }
+
+    .status-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+
+      .label {
+        font-size: 0.75rem;
+        color: #718096;
+        margin-right: 0.2rem;
+      }
+    }
+  }
+
+  .complete-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+
+    .kpi-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-direction: column;
+
+      &.highlight-box {
+        background: #ebf8ff;
+        border-color: #bee3f8;
+
+        .kpi-val {
+          color: #2b6cb0;
+          font-size: 1.8rem;
+        }
+      }
+
+      .kpi-label {
+        font-size: 0.78rem;
+        color: #718096;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .kpi-val-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.3rem;
+
+        .kpi-val {
+          font-size: 1.5rem;
+          font-weight: 800;
+          color: #2d3748;
+        }
+
+        .kpi-unit {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #718096;
+        }
+      }
+
+      .kpi-val-text {
+        font-size: 1.1rem;
+        color: #2d3748;
+        margin-top: 0.2rem;
+      }
+
+      .kpi-sub {
+        font-size: 0.75rem;
+        color: #a0aec0;
+        margin-top: 0.3rem;
+      }
+    }
+  }
+
+  .complete-form-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    background: #edf2f7;
+    border-radius: 8px;
+    padding: 1rem;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .flex-2 {
+      flex: 2;
+    }
+
+    .flex-1 {
+      flex: 1;
+    }
+
+    .form-actions-bottom {
+      display: flex;
+      align-items: flex-end;
+    }
+  }
+}
+
+.basis-card,
+.similar-quotes-card,
+.history-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.empty-box {
+  padding: 1.5rem;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px dashed #e2e8f0;
+}
+
+

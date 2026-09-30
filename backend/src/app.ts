@@ -13,6 +13,9 @@ import actualCycleTimeRoutes from './routes/actual-cycle-time.routes';
 import materialRoutes from './routes/material.routes';
 import cycleTimeEvaluationRoutes from './routes/cycle-time-evaluation.routes';
 import productionSyncRoutes from './routes/production-sync.routes';
+import productionAnalysisRoutes from './routes/production-analysis.routes';
+import correctionRoutes from './routes/correction.routes';
+import quoteManagementRoutes from './routes/quote-management.routes';
 
 const app = express();
 
@@ -23,6 +26,9 @@ app.use(express.json());
 
 // ヘルスチェックルーターのマウント (/api/health, /api/health/database)
 app.use('/api/health', healthRoutes);
+
+// PHASE17: 見積業務管理ルーターのマウント (/api/quotes/search/similar, /api/quotes/:id/complete, /api/quotes/:id/basis, /api/quotes/:id/history)
+app.use('/api', quoteManagementRoutes);
 
 // 見積案件CRUDルーターのマウント (/api/quotes)
 app.use('/api/quotes', quoteRoutes);
@@ -53,6 +59,12 @@ app.use('/api', cycleTimeEvaluationRoutes);
 
 // PHASE14: 生産実績同期ルーターのマウント (/api/production-sync, /api/production-actual-records)
 app.use('/api', productionSyncRoutes);
+
+// PHASE15: 生産実績統計分析・補正係数評価ルーターのマウント (/api/production-analysis, /api/lathe-correction-factors/confidence)
+app.use('/api', productionAnalysisRoutes);
+
+// PHASE16: 補正Engineルーターのマウント (/api/correction/preview, /api/quotes/:id/correction-history, /api/lathe-correction-factors/:id/approve)
+app.use('/api', correctionRoutes);
 
 export default app;
 

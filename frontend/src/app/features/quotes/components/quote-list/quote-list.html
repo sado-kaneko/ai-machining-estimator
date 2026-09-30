@@ -1,7 +1,10 @@
 <div class="quote-list-container">
   <div class="header">
-    <h1>見積案件一覧</h1>
-    <button class="btn btn-primary" (click)="navigateToCreate()">新規見積登録</button>
+    <div>
+      <h1>見積案件一覧</h1>
+      <p class="header-subtext">受領図面・AI解析・サイクルタイム予測・見積確定案件を一元管理します。</p>
+    </div>
+    <button class="btn btn-primary" (click)="navigateToCreate()">＋ 新規見積登録</button>
   </div>
 
   @if (errorMessage()) {
@@ -10,45 +13,82 @@
     </div>
   }
 
+  <!-- 検索 & フィルターバー -->
+  <div class="filter-bar mb-3">
+    <div class="search-input-box">
+      <input
+        type="text"
+        [ngModel]="searchTerm()"
+        (ngModelChange)="searchTerm.set($event)"
+        class="form-control"
+        placeholder="🔍 図番、顧客名、品名、見積番号、材料で検索..."
+      />
+    </div>
+    <div class="status-filter-box">
+      <select
+        [ngModel]="selectedStatus()"
+        (ngModelChange)="selectedStatus.set($event)"
+        class="form-control"
+      >
+        <option value="ALL">すべてのステータス</option>
+        <option value="DRAFT">DRAFT (下書き)</option>
+        <option value="ANALYZING">ANALYZING (解析中)</option>
+        <option value="CALCULATED">CALCULATED (計算済)</option>
+        <option value="REVIEW">REVIEW (査定中)</option>
+        <option value="APPROVED">APPROVED (承認済)</option>
+        <option value="COMPLETED">COMPLETED (見積確定)</option>
+      </select>
+    </div>
+  </div>
+
   @if (isLoading()) {
     <div class="loading">データを読み込み中...</div>
   } @else {
-    @if (quotes().length === 0) {
+    @if (filteredQuotes().length === 0) {
       <div class="empty-state">
-        <p>登録されている見積案件はありません。</p>
+        <p>該当する見積案件はありません。</p>
       </div>
     } @else {
       <div class="table-wrapper">
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th style="width: 110px;">見積番号</th>
               <th>顧客名</th>
               <th>図番</th>
               <th>品名</th>
-              <th>数量</th>
-              <th>状態</th>
-              <th>登録日</th>
-              <th>操作</th>
+              <th class="text-right" style="width: 70px;">数量</th>
+              <th style="width: 90px;">材質</th>
+              <th style="width: 110px;">状態</th>
+              <th style="width: 140px;">登録日時</th>
+              <th style="width: 80px;" class="text-center">操作</th>
             </tr>
           </thead>
           <tbody>
-            @for (quote of quotes(); track quote.id) {
+            @for (quote of filteredQuotes(); track quote.id) {
               <tr>
-                <td>{{ quote.id }}</td>
+                <td class="font-mono font-bold">{{ quote.quoteNo || ('#' + quote.id) }}</td>
                 <td>{{ quote.customerName }}</td>
-                <td>{{ quote.partNo || '-' }}</td>
+                <td class="font-bold">{{ quote.partNo || '-' }}</td>
                 <td>{{ quote.partName || '-' }}</td>
-                <td>{{ quote.quantity }}</td>
+                <td class="text-right font-bold">{{ quote.quantity }} 個</td>
+                <td>{{ quote.material || '-' }}</td>
                 <td>
-                  <span class="badge" [class.badge-draft]="quote.status === 'DRAFT'">
+                  <span
+                    class="badge"
+                    [class.badge-completed]="quote.status === 'COMPLETED'"
+                    [class.badge-approved]="quote.status === 'APPROVED'"
+                    [class.badge-review]="quote.status === 'REVIEW'"
+                    [class.badge-calculated]="quote.status === 'CALCULATED'"
+                    [class.badge-draft]="quote.status === 'DRAFT'"
+                  >
                     {{ quote.status }}
                   </span>
                 </td>
-                <td>{{ quote.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
-                <td>
-                  <button class="btn btn-secondary btn-sm" (click)="navigateToDetail(quote.id)">
-                    詳細
+                <td class="text-muted">{{ quote.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
+                <td class="text-center">
+                  <button class="btn btn-outline-primary btn-sm" (click)="navigateToDetail(quote.id)">
+                    詳細 &rarr;
                   </button>
                 </td>
               </tr>

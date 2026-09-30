@@ -92,6 +92,24 @@
           }
         </div>
       </div>
+
+      <div class="step-connector">&gt;</div>
+
+      <div
+        class="step-item"
+        [class.active]="activeTab() === 'complete'"
+        (click)="activeTab.set('complete')"
+      >
+        <div class="step-num">STEP 5</div>
+        <div class="step-label">見積確定・根拠</div>
+        <div class="step-badge">
+          @if (quoteResult()) {
+            <span class="badge badge-confirmed">確定済</span>
+          } @else {
+            <span class="badge badge-review-needed">未確定</span>
+          }
+        </div>
+      </div>
     </div>
 
     <!-- 常時表示エリア: 基本情報サマリ -->
@@ -688,25 +706,87 @@
         @if (latheCycleTime(); as ct) {
           <div class="result-hero-card mb-4">
             <div class="hero-header">
-              <span class="hero-badge">推定サイクルタイム算出結果</span>
+              <span class="hero-badge">実績フィードバック型 サイクルタイム算出結果</span>
               <span class="hero-machine">対象設備: <strong>{{ ct.machineName }}</strong></span>
             </div>
 
-            <div class="hero-main-kpi">
-              <div class="hero-kpi-block">
-                <span class="hero-kpi-label">推定サイクルタイム (1個あたり)</span>
-                <div class="hero-kpi-value-box">
-                  <span class="hero-kpi-value">{{ ct.totalCycleTimeSec }}</span>
-                  <span class="hero-kpi-unit">秒 / 個</span>
+            <!-- PHASE16: 理論CT → 補正係数 → 実績補正後CT ステップフロー -->
+            <div class="correction-flow-container">
+              <div class="flow-card">
+                <span class="flow-step-label">① 理論CT (計算値)</span>
+                <div class="flow-value-box">
+                  <span class="flow-value">{{ ct.theoreticalCycleTime ?? ct.totalCycleTimeSec }}</span>
+                  <span class="flow-unit">秒</span>
                 </div>
-                <span class="hero-kpi-sub">
-                  (約 {{ (ct.totalCycleTimeSec / 60) | number: '1.1-2' }} 分)
-                </span>
+                <span class="flow-sub">刃物切削＋機械固定動作</span>
               </div>
 
-              <div class="hero-kpi-divider"></div>
+              <div class="flow-operator">&times;</div>
 
-              <div class="hero-sub-kpi-grid">
+              <div class="flow-card" [class.applied]="ct.correctionApplied">
+                <span class="flow-step-label">② 実績補正係数</span>
+                <div class="flow-value-box">
+                  <span class="flow-value">{{ ct.correctionApplied ? (ct.correctionFactor | number: '1.2-4') : '1.00' }}</span>
+                  <span class="flow-unit">倍</span>
+                </div>
+                <div class="flow-badge-wrapper">
+                  @if (ct.correctionApplied) {
+                    <span class="badge badge-confirmed">補正適用中</span>
+                  } @else {
+                    <span class="badge badge-secondary">補正未適用</span>
+                  }
+                </div>
+              </div>
+
+              <div class="flow-operator">=</div>
+
+              <div class="flow-card final-result">
+                <span class="flow-step-label">③ 実績補正後CT (最終予測)</span>
+                <div class="flow-value-box">
+                  <span class="flow-value highlight">{{ ct.totalCycleTimeSec }}</span>
+                  <span class="flow-unit highlight">秒 / 個</span>
+                </div>
+                <span class="flow-sub highlight">
+                  約 {{ (ct.totalCycleTimeSec / 60) | number: '1.1-2' }} 分
+                </span>
+              </div>
+            </div>
+
+            <!-- PHASE16: 補正適用ログ・条件表示 (指示書 第14節) -->
+            <div class="correction-log-banner mt-3" [class.banner-applied]="ct.correctionApplied">
+              <div class="log-header">
+                <span class="log-title">
+                  <i class="icon">📊</i> 補正適用情報
+                </span>
+                @if (ct.confidenceLevel) {
+                  <span
+                    class="badge"
+                    [class.badge-success]="ct.confidenceLevel === 'HIGH'"
+                    [class.badge-warning]="ct.confidenceLevel === 'MEDIUM'"
+                    [class.badge-secondary]="ct.confidenceLevel === 'LOW' || ct.confidenceLevel === 'NONE'"
+                  >
+                    信頼度: {{ ct.confidenceLevel }}
+                  </span>
+                }
+              </div>
+              <div class="log-grid mt-2">
+                <div class="log-item">
+                  <span class="log-label">適用条件 (Source):</span>
+                  <span class="log-val font-bold">{{ ct.correctionSource || '標準計算条件' }}</span>
+                </div>
+                <div class="log-item">
+                  <span class="log-label">適用倍率:</span>
+                  <span class="log-val font-bold font-highlight">&times;{{ ct.correctionFactor ?? 1.0 }}</span>
+                </div>
+                <div class="log-item full-width">
+                  <span class="log-label">判定理由 / 備考:</span>
+                  <span class="log-val text-muted">{{ ct.correctionReason || '承認済みの実績データに基づく補正判定' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="hero-main-kpi mt-3">
+              <div class="hero-sub-kpi-grid full-grid">
                 <div class="hero-sub-kpi-item">
                   <span class="sub-label">ロット総加工時間 ({{ ct.quantity }}個)</span>
                   <span class="sub-val font-highlight">{{ ct.totalLotTimeSec }} 秒</span>
@@ -726,6 +806,41 @@
                 </div>
               </div>
             </div>
+
+            <!-- 補正適用履歴テーブル (アコーディオン) -->
+            @if (correctionHistory().length > 0) {
+              <div class="correction-history-section mt-3">
+                <details>
+                  <summary class="history-summary">
+                    <span>🕒 補正適用履歴 (過去 {{ correctionHistory().length }} 件)</span>
+                  </summary>
+                  <div class="table-wrapper mt-2">
+                    <table class="data-table history-table">
+                      <thead>
+                        <tr>
+                          <th>適用日時</th>
+                          <th>補正条件</th>
+                          <th class="text-right">補正前CT</th>
+                          <th class="text-right">適用倍率</th>
+                          <th class="text-right">補正後CT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (h of correctionHistory(); track h.id) {
+                          <tr>
+                            <td>{{ h.createdAt | date: 'yyyy/MM/dd HH:mm:ss' }}</td>
+                            <td><span class="badge badge-type">{{ h.source }}</span></td>
+                            <td class="text-right">{{ h.beforeTime }} 秒</td>
+                            <td class="text-right font-bold">&times;{{ h.factor }}</td>
+                            <td class="text-right font-highlight font-bold">{{ h.afterTime }} 秒</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+            }
           </div>
 
           <!-- 3. 工程別詳細表示テーブル -->
@@ -1192,8 +1307,13 @@
           @if (correctionFactors().length > 0) {
             <div class="correction-factor-section">
               <div class="section-header-flex">
-                <h4>設備・材料別 補正係数学習データ ({{ correctionFactors().length }}件)</h4>
-                <small class="text-muted">※次フェーズ以降のEngine自動補正に活用されます（現フェーズは蓄積のみ）</small>
+                <div>
+                  <h4>設備・材料別 補正係数学習データ ({{ correctionFactors().length }}件)</h4>
+                  <small class="text-muted">※次フェーズ以降のEngine自動補正に活用されます（現フェーズは蓄積のみ）</small>
+                </div>
+                <a routerLink="/analysis" class="btn btn-outline-primary btn-sm">
+                  📊 実績統計分析画面へ &rarr;
+                </a>
               </div>
               <div class="detail-grid">
                 @for (cf of correctionFactors(); track cf.id) {
@@ -1206,6 +1326,326 @@
                   </div>
                 }
               </div>
+            </div>
+          }
+
+          <div class="step-next-bar mt-4">
+            <span class="text-muted">加工実績との差異分析が完了したら、見積確定と社内根拠資料を出力します。</span>
+            <button class="btn btn-primary" (click)="activeTab.set('complete')">
+              次へ: 見積確定・根拠出力 (STEP 5) &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ============================================================== -->
+    <!-- STEP 5: 見積確定 & 根拠出力 & 履歴管理 (PHASE17)                -->
+    <!-- ============================================================== -->
+    @if (activeTab() === 'complete') {
+      <div class="content-panel">
+        <div class="panel-header">
+          <div>
+            <h2>STEP 5: 見積確定 &amp; 見積根拠資料出力・履歴管理</h2>
+            <p class="panel-subtext">AI予測・実績補正サイクルタイムに基づいて見積を確定し、社内説明用の見積根拠資料出力および案件履歴を管理します。</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-outline-primary" (click)="handlePrintPdf()">
+              🖨️ 見積根拠書 (PDF/印刷) を開く
+            </button>
+            <button
+              class="btn btn-success"
+              (click)="handleCompleteQuote()"
+              [disabled]="isCompletingQuote() || !latheCycleTime()"
+            >
+              {{ isCompletingQuote() ? '確定処理中...' : '✓ 見積を確定保存する' }}
+            </button>
+          </div>
+        </div>
+
+        @if (completeSuccessMessage()) {
+          <div class="alert alert-success">{{ completeSuccessMessage() }}</div>
+        }
+        @if (completeErrorMessage()) {
+          <div class="alert alert-error">{{ completeErrorMessage() }}</div>
+        }
+
+        <!-- 1. 見積確定サマリ & ステータスカード -->
+        <div class="complete-status-card mb-4" [class.is-completed]="q.status === 'COMPLETED'">
+          <div class="status-card-header">
+            <div class="status-left">
+              <span class="status-badge" [class.badge-completed]="q.status === 'COMPLETED'">
+                案件ステータス: <strong>{{ q.status }}</strong>
+              </span>
+              @if (quoteResult(); as qr) {
+                <span class="completed-meta">
+                  確定日時: {{ qr.completedAt | date: 'yyyy/MM/dd HH:mm' }} (確定者: {{ qr.completedBy }})
+                </span>
+              }
+            </div>
+            <div class="status-actions">
+              <span class="label">ステータス変更:</span>
+              <button class="btn btn-outline-secondary btn-xs" (click)="handleUpdateQuoteStatus('REVIEW')">査定中</button>
+              <button class="btn btn-outline-secondary btn-xs" (click)="handleUpdateQuoteStatus('APPROVED')">社内承認</button>
+              <button class="btn btn-outline-success btn-xs" (click)="handleUpdateQuoteStatus('COMPLETED')">見積確定</button>
+            </div>
+          </div>
+
+          <!-- 確定CTメインKPI -->
+          <div class="complete-kpi-grid mt-3">
+            <div class="kpi-item highlight-box">
+              <span class="kpi-label">確定サイクルタイム (1個あたり)</span>
+              <div class="kpi-val-row">
+                <span class="kpi-val">{{ quoteResult() ? quoteResult()!.finalTime : (latheCycleTime() ? latheCycleTime()!.totalCycleTimeSec : '-') }}</span>
+                <span class="kpi-unit">秒 / 個</span>
+              </div>
+              <span class="kpi-sub">
+                約 {{ ((quoteResult() ? quoteResult()!.finalTime : (latheCycleTime() ? latheCycleTime()!.totalCycleTimeSec : 0)) / 60) | number: '1.1-2' }} 分
+              </span>
+            </div>
+
+            <div class="kpi-item">
+              <span class="kpi-label">ロット総加工時間 ({{ q.quantity }}個)</span>
+              <div class="kpi-val-row">
+                <span class="kpi-val font-highlight">{{ quoteResult() ? quoteResult()!.totalLotTime : (latheCycleTime() ? latheCycleTime()!.totalLotTimeSec : '-') }}</span>
+                <span class="kpi-unit">秒</span>
+              </div>
+              <span class="kpi-sub">
+                約 {{ ((quoteResult() ? quoteResult()!.totalLotTime : (latheCycleTime() ? latheCycleTime()!.totalLotTimeSec : 0)) / 60) | number: '1.1-1' }} 分
+              </span>
+            </div>
+
+            <div class="kpi-item">
+              <span class="kpi-label">使用設備</span>
+              <span class="kpi-val-text font-bold">{{ quoteResult() ? quoteResult()!.machine : (selectedMachine()?.machineName || 'Cincom L20') }}</span>
+              <span class="kpi-sub">最大回転数: {{ selectedMachine()?.maxRpm || 10000 }} rpm</span>
+            </div>
+
+            <div class="kpi-item">
+              <span class="kpi-label">補正倍率</span>
+              <span class="kpi-val-text font-bold font-highlight">
+                &times;{{ quoteResult() ? quoteResult()!.correctionFactor : (latheCycleTime()?.correctionFactor || 1.0) }}
+              </span>
+              <span class="kpi-sub">
+                {{ latheCycleTime()?.correctionApplied ? '実績フィードバック適用' : '標準計算条件' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 見積確定フォーム (特記事項 & 確定者入力) -->
+          <div class="complete-form-row mt-3">
+            <div class="form-group flex-2">
+              <label>見積特記事項・備考 (社内メモ・提出補足)</label>
+              <input
+                type="text"
+                [(ngModel)]="completeForm.notes"
+                class="form-control"
+                placeholder="例: バーフィーダー材料送り1回につき4個取り想定。初品検査時間込み。"
+              />
+            </div>
+            <div class="form-group flex-1">
+              <label>確定処理者</label>
+              <input
+                type="text"
+                [(ngModel)]="completeForm.operatorName"
+                class="form-control"
+                placeholder="例: 見積担当者 山田"
+              />
+            </div>
+            <div class="form-actions-bottom">
+              <button
+                class="btn btn-primary"
+                (click)="handleCompleteQuote()"
+                [disabled]="isCompletingQuote() || !latheCycleTime()"
+              >
+                {{ isCompletingQuote() ? '保存中...' : '💾 見積結果を確定保存' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 見積根拠データ一覧 (指示書第8節) -->
+        <div class="basis-card mb-4">
+          <div class="section-header-flex">
+            <div>
+              <h3>📋 見積根拠詳細 (社内説明用サマリ)</h3>
+              <p class="section-subtext">AI図面解析、切削条件マスタ、および実績補正に基づく完全な根拠データです。</p>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" (click)="handlePrintPdf()">
+              📄 PDF/印刷用帳票を出力
+            </button>
+          </div>
+
+          <div class="detail-grid mt-3">
+            <div class="detail-item">
+              <span class="label">顧客名 / 図番</span>
+              <span class="value font-bold">{{ q.customerName }} / {{ q.partNo }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">材料 / 素材寸法</span>
+              <span class="value">
+                {{ materialInfo()?.materialName || activeAnalysis()?.material || 'S45C' }}
+                (φ{{ materialInfo()?.diameter || activeAnalysis()?.stockDiameter || '-' }}mm)
+              </span>
+            </div>
+            <div class="detail-item">
+              <span class="label">理論CT (切削 / 非切削)</span>
+              <span class="value">
+                {{ latheCycleTime()?.theoreticalCycleTime || latheCycleTime()?.totalCycleTimeSec || '-' }} 秒
+                <small class="text-muted">(切削: {{ latheCycleTime()?.cuttingTimeSec }}s / 非切削: {{ latheCycleTime()?.nonCuttingTimeSec }}s)</small>
+              </span>
+            </div>
+            <div class="detail-item">
+              <span class="label">実績補正条件 / 信頼度</span>
+              <span class="value">
+                {{ latheCycleTime()?.correctionSource || '標準理論値' }}
+                @if (latheCycleTime()?.confidenceLevel) {
+                  <span class="badge badge-success">{{ latheCycleTime()?.confidenceLevel }}</span>
+                }
+              </span>
+            </div>
+          </div>
+
+          <!-- 工程一覧サマリテーブル -->
+          @if (latheCycleTime(); as ct) {
+            <div class="table-wrapper mt-3">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 45px;">No</th>
+                    <th>工程名</th>
+                    <th class="text-right">加工径</th>
+                    <th class="text-right">加工長</th>
+                    <th class="text-right">切削速度</th>
+                    <th class="text-right">送り</th>
+                    <th class="text-right">切削時間</th>
+                    <th class="text-right">非切削時間</th>
+                    <th class="text-right font-bold">工程合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (op of ct.operations; track op.id) {
+                    <tr>
+                      <td class="text-center font-bold">{{ op.sequenceNo }}</td>
+                      <td><span class="badge badge-type">{{ op.processName }}</span></td>
+                      <td class="text-right">{{ op.diameter ? 'φ' + op.diameter : '-' }}</td>
+                      <td class="text-right">{{ op.machiningLength ? op.machiningLength + 'mm' : '-' }}</td>
+                      <td class="text-right">{{ op.vc ? op.vc + ' m/min' : '-' }}</td>
+                      <td class="text-right">{{ op.feed ? op.feed + ' mm/rev' : '-' }}</td>
+                      <td class="text-right">{{ op.cuttingTimeSec }} 秒</td>
+                      <td class="text-right text-muted">{{ op.nonCuttingTimeSec }} 秒</td>
+                      <td class="text-right font-bold">{{ op.totalTimeSec }} 秒</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+
+        <!-- 3. 類似過去案件一覧 (指示書第7節、第14節) -->
+        <div class="similar-quotes-card mb-4">
+          <div class="section-header-flex">
+            <div>
+              <h3>🔍 類似過去案件 (参考CT・再利用候補)</h3>
+              <p class="section-subtext">同一系統の図番・材料・径の過去見積案件です。見積根拠の妥当性確認に活用できます。</p>
+            </div>
+            @if (isLoadingSimilar()) {
+              <span class="text-muted">検索中...</span>
+            }
+          </div>
+
+          @if (similarQuotes().length === 0) {
+            <div class="empty-box mt-2">
+              <span class="text-muted">類似する過去案件は見つかりませんでした。</span>
+            </div>
+          } @else {
+            <div class="table-wrapper mt-2">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>見積番号</th>
+                    <th>図番</th>
+                    <th>顧客名</th>
+                    <th>材料</th>
+                    <th>数量</th>
+                    <th class="text-right">予測CT</th>
+                    <th class="text-right">ロット総時間</th>
+                    <th>類似判定理由</th>
+                    <th style="width: 80px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (sq of similarQuotes(); track sq.id) {
+                    <tr>
+                      <td class="font-mono">{{ sq.quoteNo || ('#' + sq.id) }}</td>
+                      <td class="font-bold">{{ sq.partNo }}</td>
+                      <td>{{ sq.customerName }}</td>
+                      <td>{{ sq.material || '-' }}</td>
+                      <td>{{ sq.quantity }} 個</td>
+                      <td class="text-right font-highlight font-bold">{{ sq.cycleTimeSec ? sq.cycleTimeSec + ' 秒' : '-' }}</td>
+                      <td class="text-right">{{ sq.totalLotTimeSec ? sq.totalLotTimeSec + ' 秒' : '-' }}</td>
+                      <td><span class="badge badge-secondary">{{ sq.similarityReason }}</span></td>
+                      <td>
+                        <a [routerLink]="['/quotes', sq.id]" target="_blank" class="btn btn-outline-primary btn-xs">
+                          参照 &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+
+        <!-- 4. 見積操作・変更履歴 (指示書第6節、第10.1節) -->
+        <div class="history-card">
+          <div class="section-header-flex">
+            <div>
+              <h3>🕒 見積変更・操作履歴 ({{ quoteManagementHistory().length }}件)</h3>
+              <p class="section-subtext">確定・ステータス更新・計算実行などの監査履歴です。</p>
+            </div>
+          </div>
+
+          @if (quoteManagementHistory().length === 0) {
+            <div class="empty-box mt-2">
+              <span class="text-muted">操作履歴はまだ記録されていません。</span>
+            </div>
+          } @else {
+            <div class="table-wrapper mt-2">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 160px;">操作日時</th>
+                    <th style="width: 130px;">操作種類</th>
+                    <th style="width: 120px;">実行者</th>
+                    <th>変更内容・詳細</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (h of quoteManagementHistory(); track h.id) {
+                    <tr>
+                      <td class="text-muted">{{ h.createdAt | date: 'yyyy/MM/dd HH:mm:ss' }}</td>
+                      <td>
+                        <span class="badge" [class.badge-confirmed]="h.action === 'COMPLETE_QUOTE'" [class.badge-type]="h.action === 'STATUS_CHANGE'">
+                          {{ h.action }}
+                        </span>
+                      </td>
+                      <td class="font-bold">{{ h.createdBy }}</td>
+                      <td>
+                        @if (h.action === 'COMPLETE_QUOTE') {
+                          <span>見積を確定保存 (最終CT: <strong>{{ h.afterData?.result?.finalTime }}秒</strong>, ロット時間: <strong>{{ h.afterData?.result?.totalLotTime }}秒</strong>)</span>
+                        } @else if (h.action === 'STATUS_CHANGE') {
+                          <span>ステータスを <strong>{{ h.beforeData?.status }}</strong> &rarr; <strong>{{ h.afterData?.status }}</strong> に更新</span>
+                        } @else {
+                          <span>{{ h.action }} を実行</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           }
         </div>

@@ -5,8 +5,10 @@ export interface Quote {
   partNo: string;
   partName: string;
   quantity: number;
+  material?: string | null;
   status: string;
   notes: string | null;
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string | null;
 }

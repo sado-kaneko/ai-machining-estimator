@@ -18,6 +18,13 @@ export interface CalculationEngineOutput {
   nonCuttingTimeSec: number;
   totalTimeSec: number;
   totalLotTimeSec: number;
+  theoreticalCycleTime?: number;
+  correctionFactor?: number;
+  correctedCycleTime?: number;
+  correctionSource?: string;
+  correctionApplied?: boolean;
+  confidenceLevel?: string;
+  correctionReason?: string;
   operationDetails: AutomaticLatheOperationDto[];
 }
 

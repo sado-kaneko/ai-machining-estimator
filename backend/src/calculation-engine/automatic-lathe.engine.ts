@@ -6,6 +6,7 @@ import {
   CalculationEngineOutput,
   ICalculationEngine,
 } from './engine.interface';
+import { correctionService } from '../services/correction.service';
 
 export class AutomaticLatheEngine implements ICalculationEngine {
   readonly engineType = 'AUTOMATIC_LATHE';
@@ -157,8 +158,22 @@ export class AutomaticLatheEngine implements ICalculationEngine {
 
     const cuttingTimeSec = Math.round(totalCuttingSec * 1000) / 1000;
     const nonCuttingTimeSec = Math.round(totalNonCuttingSec * 1000) / 1000;
-    const totalTimeSec = Math.round((cuttingTimeSec + nonCuttingTimeSec) * 1000) / 1000;
-    const totalLotTimeSec = Math.round(totalTimeSec * (quantity > 0 ? quantity : 1) * 1000) / 1000;
+    const theoreticalCycleTime = Math.round((cuttingTimeSec + nonCuttingTimeSec) * 1000) / 1000;
+
+    // PHASE16: 実績フィードバック補正係数取得・判定
+    const correctionDecision = await correctionService.resolveCorrection(
+      input.machineId,
+      input.materialName,
+      theoreticalCycleTime,
+      quoteId
+    );
+
+    const correctedCycleTime = correctionDecision.applied
+      ? Math.round(theoreticalCycleTime * correctionDecision.factor * 1000) / 1000
+      : theoreticalCycleTime;
+
+    const finalTotalTimeSec = correctedCycleTime;
+    const finalTotalLotTimeSec = Math.round(finalTotalTimeSec * (quantity > 0 ? quantity : 1) * 1000) / 1000;
 
     // 最新状態を再取得
     const updatedRows = await latheRepository.findOperationsByQuoteId(quoteId);
@@ -174,8 +189,15 @@ export class AutomaticLatheEngine implements ICalculationEngine {
       calculationEngineType: this.engineType,
       cuttingTimeSec,
       nonCuttingTimeSec,
-      totalTimeSec,
-      totalLotTimeSec,
+      totalTimeSec: finalTotalTimeSec,
+      totalLotTimeSec: finalTotalLotTimeSec,
+      theoreticalCycleTime,
+      correctionFactor: correctionDecision.factor,
+      correctedCycleTime,
+      correctionSource: correctionDecision.source,
+      correctionApplied: correctionDecision.applied,
+      confidenceLevel: correctionDecision.confidence,
+      correctionReason: correctionDecision.reason,
       operationDetails,
     };
   }

@@ -13,6 +13,7 @@ export class CycleTimeRepository {
   async findByQuoteId(quoteId: number): Promise<CycleTimeResultRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT id, quote_id, cutting_time_sec, non_cutting_time_sec, total_cycle_time_sec,
+              theoretical_cycle_time, correction_factor, corrected_cycle_time, correction_source, correction_applied,
               quantity, total_lot_time_sec, calculation_version, created_at, updated_at
        FROM cycle_time_results
        WHERE quote_id = ?
@@ -34,13 +35,19 @@ export class CycleTimeRepository {
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO cycle_time_results (
          quote_id, cutting_time_sec, non_cutting_time_sec, total_cycle_time_sec,
+         theoretical_cycle_time, correction_factor, corrected_cycle_time, correction_source, correction_applied,
          quantity, total_lot_time_sec, calculation_version
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.quoteId,
         input.cuttingTimeSec,
         input.nonCuttingTimeSec,
         input.totalCycleTimeSec,
+        input.theoreticalCycleTime ?? input.totalCycleTimeSec,
+        input.correctionFactor ?? 1.0,
+        input.correctedCycleTime ?? input.totalCycleTimeSec,
+        input.correctionSource ?? null,
+        input.correctionApplied ? 1 : 0,
         input.quantity,
         input.totalLotTimeSec,
         input.calculationVersion || '1.0.0',

@@ -5,6 +5,11 @@ export interface CycleTimeResultRow {
   cutting_time_sec: number;
   non_cutting_time_sec: number;
   total_cycle_time_sec: number;
+  theoretical_cycle_time: number | null;
+  correction_factor: number;
+  corrected_cycle_time: number | null;
+  correction_source: string | null;
+  correction_applied: number;
   quantity: number;
   total_lot_time_sec: number;
   calculation_version: string;
@@ -18,6 +23,11 @@ export interface CreateCycleTimeResultInput {
   cuttingTimeSec: number;
   nonCuttingTimeSec: number;
   totalCycleTimeSec: number;
+  theoreticalCycleTime?: number | null;
+  correctionFactor?: number;
+  correctedCycleTime?: number | null;
+  correctionSource?: string | null;
+  correctionApplied?: boolean;
   quantity: number;
   totalLotTimeSec: number;
   calculationVersion?: string;
@@ -70,6 +80,11 @@ export interface CycleTimeResultDto {
   cuttingTimeSec: number;
   nonCuttingTimeSec: number;
   totalCycleTimeSec: number;
+  theoreticalCycleTime: number | null;
+  correctionFactor: number;
+  correctedCycleTime: number | null;
+  correctionSource: string | null;
+  correctionApplied: boolean;
   quantity: number;
   totalLotTimeSec: number;
   calculationVersion: string;
@@ -88,6 +103,11 @@ export function toCycleTimeResultDto(
     cuttingTimeSec: Number(row.cutting_time_sec),
     nonCuttingTimeSec: Number(row.non_cutting_time_sec),
     totalCycleTimeSec: Number(row.total_cycle_time_sec),
+    theoreticalCycleTime: row.theoretical_cycle_time !== null ? Number(row.theoretical_cycle_time) : null,
+    correctionFactor: Number(row.correction_factor || 1.0),
+    correctedCycleTime: row.corrected_cycle_time !== null ? Number(row.corrected_cycle_time) : null,
+    correctionSource: row.correction_source ? String(row.correction_source) : null,
+    correctionApplied: Boolean(row.correction_applied),
     quantity: Number(row.quantity),
     totalLotTimeSec: Number(row.total_lot_time_sec),
     calculationVersion: row.calculation_version,

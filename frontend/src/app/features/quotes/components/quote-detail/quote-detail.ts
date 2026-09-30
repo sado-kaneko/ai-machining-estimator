@@ -37,11 +37,23 @@ import {
 } from '../../models/cycle-time-evaluation.model';
 import { ProductionActualService } from '../../services/production-actual.service';
 import { ProductionActualRecord } from '../../models/production-actual.model';
+import { CorrectionService } from '../../services/correction.service';
+import { CorrectionHistoryItem } from '../../models/correction.model';
+import { QuoteManagementService } from '../../services/quote-management.service';
+import {
+  QuoteBasis,
+  QuoteHistory,
+  QuoteResult,
+  QuoteStatus,
+  SimilarQuoteItem,
+} from '../../models/quote-management.model';
+
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-quote-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './quote-detail.html',
   styleUrl: './quote-detail.scss',
 })
@@ -56,9 +68,11 @@ export class QuoteDetailComponent implements OnInit {
   private readonly latheService = inject(LatheService);
   private readonly calculationService = inject(CalculationService);
   private readonly actualCycleTimeService = inject(ActualCycleTimeService);
+  private readonly correctionService = inject(CorrectionService);
   private readonly materialService = inject(MaterialService);
   private readonly cycleTimeEvaluationService = inject(CycleTimeEvaluationService);
   private readonly productionActualService = inject(ProductionActualService);
+  private readonly quoteManagementService = inject(QuoteManagementService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
@@ -118,10 +132,25 @@ export class QuoteDetailComponent implements OnInit {
   isChangingMachine = signal<boolean>(false);
   machineMessage = signal<string | null>(null);
 
-  // タブ切り替え: 目的別4ステップ構成 (PHASE10.5)
-  // 'overview' (STEP1: 図面・AI解析) | 'review' (STEP2: 加工内容確認) | 'calculation' (STEP3: 設備・CT計算) | 'comparison' (STEP4: 実績比較)
-  activeTab = signal<'overview' | 'review' | 'calculation' | 'comparison'>('overview');
+  // タブ切り替え: 目的別5ステップ構成 (PHASE10.5 / PHASE17)
+  // 'overview' (STEP1: 図面・AI解析) | 'review' (STEP2: 加工内容確認) | 'calculation' (STEP3: 設備・CT計算) | 'comparison' (STEP4: 実績比較) | 'complete' (STEP5: 見積確定・根拠)
+  activeTab = signal<'overview' | 'review' | 'calculation' | 'comparison' | 'complete'>('overview');
   reviewSubTab = signal<'features' | 'operations'>('features');
+
+  // PHASE17: 見積確定・根拠・履歴管理シグナル
+  quoteResult = signal<QuoteResult | null>(null);
+  quoteBasis = signal<QuoteBasis | null>(null);
+  quoteManagementHistory = signal<QuoteHistory[]>([]);
+  similarQuotes = signal<SimilarQuoteItem[]>([]);
+  isCompletingQuote = signal<boolean>(false);
+  isLoadingBasis = signal<boolean>(false);
+  isLoadingSimilar = signal<boolean>(false);
+  completeSuccessMessage = signal<string | null>(null);
+  completeErrorMessage = signal<string | null>(null);
+  completeForm = {
+    notes: '',
+    operatorName: '見積担当者',
+  };
 
   // 実績フィードバック関連シグナル (PHASE10)
   actualCycleTimes = signal<ActualCycleTime[]>([]);
@@ -154,6 +183,10 @@ export class QuoteDetailComponent implements OnInit {
   isCalculatingLatheCt = signal<boolean>(false);
   latheErrorMessage = signal<string | null>(null);
   latheSuccessMessage = signal<string | null>(null);
+
+  // PHASE16: 補正Engine履歴シグナル
+  correctionHistory = signal<CorrectionHistoryItem[]>([]);
+  isLoadingCorrectionHistory = signal<boolean>(false);
 
   // サイクルタイム計算関連シグナル
   cycleTimeResult = signal<CycleTimeResult | null>(null);
@@ -222,6 +255,10 @@ export class QuoteDetailComponent implements OnInit {
     this.loadEvaluations(id);
     this.loadCorrectionFactors();
     this.loadProductionActual(id);
+    this.loadCorrectionHistory(id);
+    this.loadQuoteResult(id);
+    this.loadQuoteBasis(id);
+    this.loadQuoteManagementHistory(id);
   }
 
   loadQuote(id: number): void {
@@ -642,9 +679,24 @@ export class QuoteDetailComponent implements OnInit {
     this.latheService.getLatheCycleTime(quoteId).subscribe({
       next: (res) => {
         this.latheCycleTime.set(res);
+        this.loadCorrectionHistory(quoteId);
       },
       error: () => {
         this.latheCycleTime.set(null);
+      },
+    });
+  }
+
+  loadCorrectionHistory(quoteId: number): void {
+    this.isLoadingCorrectionHistory.set(true);
+    this.correctionService.getHistory(quoteId).subscribe({
+      next: (res) => {
+        this.correctionHistory.set(res.items);
+        this.isLoadingCorrectionHistory.set(false);
+      },
+      error: () => {
+        this.correctionHistory.set([]);
+        this.isLoadingCorrectionHistory.set(false);
       },
     });
   }
@@ -779,6 +831,7 @@ export class QuoteDetailComponent implements OnInit {
         this.latheSuccessMessage.set(`【${res.machineName} (${res.calculationEngineType || 'AUTOMATIC_LATHE'})】サイクルタイムの計算が完了しました。`);
         this.loadLatheOperations(q.id);
         this.loadComparison(q.id);
+        this.loadCorrectionHistory(q.id);
       },
       error: (err) => {
         this.isCalculatingLatheCt.set(false);
@@ -1114,5 +1167,126 @@ export class QuoteDetailComponent implements OnInit {
     }
     const notePrefix = `[sadoa同期実績 図番:${record.buban || '-'} 担当:${record.operatorName || '-'} 数量:${record.quantity}個] `;
     this.evaluationForm.notes = notePrefix + (this.evaluationForm.notes || '');
+  }
+
+  // =================== PHASE17 見積業務システム化 ===================
+
+  loadQuoteResult(quoteId: number): void {
+    this.quoteManagementService.getQuoteBasis(quoteId).subscribe({
+      next: (basis) => {
+        this.quoteBasis.set(basis);
+        this.quoteResult.set(basis.completedResult || null);
+        if (basis.quote.partNo) {
+          this.loadSimilarQuotes(basis.quote.partNo, basis.quote.material || undefined);
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  loadQuoteBasis(quoteId: number): void {
+    this.isLoadingBasis.set(true);
+    this.quoteManagementService.getQuoteBasis(quoteId).subscribe({
+      next: (basis) => {
+        this.quoteBasis.set(basis);
+        this.isLoadingBasis.set(false);
+      },
+      error: () => {
+        this.isLoadingBasis.set(false);
+      },
+    });
+  }
+
+  loadQuoteManagementHistory(quoteId: number): void {
+    this.quoteManagementService.getQuoteHistory(quoteId).subscribe({
+      next: (res) => {
+        this.quoteManagementHistory.set(res.items);
+      },
+      error: () => {
+        this.quoteManagementHistory.set([]);
+      },
+    });
+  }
+
+  loadSimilarQuotes(partNo?: string, material?: string, diameter?: number): void {
+    this.isLoadingSimilar.set(true);
+    this.quoteManagementService.searchSimilarQuotes({ partNo, material, diameter, limit: 6 }).subscribe({
+      next: (res) => {
+        // 自案件を除外
+        const curId = this.quote()?.id;
+        this.similarQuotes.set(res.items.filter((it) => it.id !== curId));
+        this.isLoadingSimilar.set(false);
+      },
+      error: () => {
+        this.similarQuotes.set([]);
+        this.isLoadingSimilar.set(false);
+      },
+    });
+  }
+
+  handleCompleteQuote(): void {
+    const q = this.quote();
+    const ct = this.latheCycleTime();
+    if (!q) return;
+
+    if (!confirm('現在の算出サイクルタイムと補正条件で見積を「確定 (COMPLETED)」として保存しますか？')) {
+      return;
+    }
+
+    this.isCompletingQuote.set(true);
+    this.completeSuccessMessage.set(null);
+    this.completeErrorMessage.set(null);
+
+    const payload = {
+      cycleTime: ct?.theoreticalCycleTime ?? ct?.totalCycleTimeSec ?? 0,
+      machine: ct?.machineName || this.selectedMachine()?.machineName || 'Cincom L20',
+      correctionFactor: ct?.correctionFactor ?? 1.0,
+      finalTime: ct?.totalCycleTimeSec ?? 0,
+      quantity: q.quantity,
+      totalLotTime: ct?.totalLotTimeSec ?? 0,
+      cuttingTime: ct?.cuttingTimeSec,
+      nonCuttingTime: ct?.nonCuttingTimeSec,
+      correctionSource: ct?.correctionSource ?? undefined,
+      confidenceLevel: ct?.confidenceLevel ?? undefined,
+      notes: this.completeForm.notes,
+      completedBy: this.completeForm.operatorName,
+    };
+
+    this.quoteManagementService.completeQuote(q.id, payload).subscribe({
+      next: (res) => {
+        this.isCompletingQuote.set(false);
+        this.quoteResult.set(res.result);
+        this.completeSuccessMessage.set('見積案件を確定保存しました。ステータスが COMPLETED に更新されました。');
+        this.loadQuote(q.id);
+        this.loadQuoteBasis(q.id);
+        this.loadQuoteManagementHistory(q.id);
+      },
+      error: (err) => {
+        this.isCompletingQuote.set(false);
+        const msg = err?.error?.error?.message || '見積確定保存に失敗しました。';
+        this.completeErrorMessage.set(msg);
+      },
+    });
+  }
+
+  handlePrintPdf(): void {
+    const q = this.quote();
+    if (!q) return;
+    const url = this.quoteManagementService.getPdfExportUrl(q.id);
+    window.open(url, '_blank');
+  }
+
+  handleUpdateQuoteStatus(status: QuoteStatus): void {
+    const q = this.quote();
+    if (!q) return;
+    this.quoteManagementService.updateStatus(q.id, status, this.completeForm.operatorName).subscribe({
+      next: () => {
+        this.loadQuote(q.id);
+        this.loadQuoteManagementHistory(q.id);
+      },
+      error: (err) => {
+        alert(err?.error?.error?.message || 'ステータスの更新に失敗しました。');
+      },
+    });
   }
 }
