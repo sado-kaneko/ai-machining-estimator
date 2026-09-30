@@ -9,6 +9,7 @@ import featureRoutes from './routes/feature.routes';
 import operationRoutes from './routes/operation.routes';
 import cycleTimeRoutes from './routes/cycle-time.routes';
 import latheRoutes from './routes/lathe.routes';
+import actualCycleTimeRoutes from './routes/actual-cycle-time.routes';
 
 const app = express();
 
@@ -38,4 +39,8 @@ app.use('/api', cycleTimeRoutes);
 // NC自動旋盤エンジンルーターのマウント (/api/quotes/:id/lathe-operations, /api/quotes/:id/lathe-cycle-time)
 app.use('/api', latheRoutes);
 
+// 加工実績・比較ルーターのマウント (/api/quotes/:id/actual-cycle-times, /api/quotes/:id/cycle-time-comparison)
+app.use('/api', actualCycleTimeRoutes);
+
 export default app;
+

@@ -9,6 +9,7 @@ import { OperationService } from '../../services/operation.service';
 import { CycleTimeService } from '../../services/cycle-time.service';
 import { LatheService } from '../../services/lathe.service';
 import { CalculationService } from '../../services/calculation.service';
+import { ActualCycleTimeService } from '../../services/actual-cycle-time.service';
 import { Quote } from '../../models/quote.model';
 import { Drawing } from '../../models/drawing.model';
 import { DrawingAnalysis, Feature, UpdateFeatureRequest } from '../../models/feature.model';
@@ -16,6 +17,11 @@ import { Operation, UpdateOperationRequest } from '../../models/operation.model'
 import { CycleTimeResult } from '../../models/cycle-time.model';
 import { AutomaticLatheOperation, LatheCycleTimeSummary } from '../../models/lathe.model';
 import { Machine, QuoteMachineSelection } from '../../models/machine.model';
+import {
+  ActualCycleTime,
+  CreateActualCycleTimeRequest,
+  CycleTimeComparison,
+} from '../../models/actual-cycle-time.model';
 
 @Component({
   selector: 'app-quote-detail',
@@ -34,6 +40,7 @@ export class QuoteDetailComponent implements OnInit {
   private readonly cycleTimeService = inject(CycleTimeService);
   private readonly latheService = inject(LatheService);
   private readonly calculationService = inject(CalculationService);
+  private readonly actualCycleTimeService = inject(ActualCycleTimeService);
 
   quote = signal<Quote | null>(null);
   drawings = signal<Drawing[]>([]);
@@ -51,8 +58,31 @@ export class QuoteDetailComponent implements OnInit {
   isChangingMachine = signal<boolean>(false);
   machineMessage = signal<string | null>(null);
 
-  // タブ切り替え ('features' | 'operations' | 'cycle-time' | 'lathe')
-  activeTab = signal<'features' | 'operations' | 'cycle-time' | 'lathe'>('lathe');
+  // タブ切り替え ('features' | 'operations' | 'cycle-time' | 'lathe' | 'actual')
+  activeTab = signal<'features' | 'operations' | 'cycle-time' | 'lathe' | 'actual'>('lathe');
+
+  // 実績フィードバック関連シグナル (PHASE10)
+  actualCycleTimes = signal<ActualCycleTime[]>([]);
+  comparison = signal<CycleTimeComparison | null>(null);
+  isLoadingActual = signal<boolean>(false);
+  isLoadingComparison = signal<boolean>(false);
+  isSubmittingActual = signal<boolean>(false);
+  actualErrorMessage = signal<string | null>(null);
+  actualSuccessMessage = signal<string | null>(null);
+
+  // 実績登録モーダル用
+  showActualModal = signal<boolean>(false);
+  actualInputMode = signal<'unit' | 'total'>('unit');
+  totalMachiningTimeSec = signal<number | null>(null);
+  actualForm: CreateActualCycleTimeRequest = {
+    machineId: null,
+    productionDate: new Date().toISOString().split('T')[0],
+    quantity: 1,
+    actualCycleTimeSec: 0,
+    setupTimeSec: 0,
+    operatorName: '',
+    notes: '',
+  };
 
   // NC自動旋盤エンジン関連シグナル (PHASE08)
   latheOperations = signal<AutomaticLatheOperation[]>([]);
@@ -124,6 +154,8 @@ export class QuoteDetailComponent implements OnInit {
     this.loadLatheOperations(id);
     this.loadLatheCycleTime(id);
     this.loadMachinesAndSelection(id);
+    this.loadActualCycleTimes(id);
+    this.loadComparison(id);
   }
 
   loadQuote(id: number): void {
@@ -647,11 +679,132 @@ export class QuoteDetailComponent implements OnInit {
         this.isCalculatingLatheCt.set(false);
         this.latheSuccessMessage.set(`【${res.machineName} (${res.calculationEngineType || 'AUTOMATIC_LATHE'})】サイクルタイムの計算が完了しました。`);
         this.loadLatheOperations(q.id);
+        this.loadComparison(q.id);
       },
       error: (err) => {
         this.isCalculatingLatheCt.set(false);
         const msg = err?.error?.error?.message || 'サイクルタイムの計算に失敗しました。';
         this.latheErrorMessage.set(msg);
+      },
+    });
+  }
+
+  // =================== PHASE10 実績フィードバック ===================
+
+  loadActualCycleTimes(quoteId: number): void {
+    this.isLoadingActual.set(true);
+    this.actualCycleTimeService.getActualCycleTimes(quoteId).subscribe({
+      next: (res) => {
+        this.actualCycleTimes.set(res.items);
+        this.isLoadingActual.set(false);
+      },
+      error: () => {
+        this.actualCycleTimes.set([]);
+        this.isLoadingActual.set(false);
+      },
+    });
+  }
+
+  loadComparison(quoteId: number): void {
+    this.isLoadingComparison.set(true);
+    this.actualCycleTimeService.getComparison(quoteId).subscribe({
+      next: (res) => {
+        this.comparison.set(res);
+        this.isLoadingComparison.set(false);
+      },
+      error: () => {
+        this.comparison.set(null);
+        this.isLoadingComparison.set(false);
+      },
+    });
+  }
+
+  openActualModal(): void {
+    const q = this.quote();
+    this.actualForm = {
+      machineId: this.selectedMachineId() ?? null,
+      productionDate: new Date().toISOString().split('T')[0],
+      quantity: q?.quantity && q.quantity > 0 ? q.quantity : 1,
+      actualCycleTimeSec: 0,
+      setupTimeSec: 0,
+      operatorName: '',
+      notes: '',
+    };
+    this.actualInputMode.set('unit');
+    this.totalMachiningTimeSec.set(null);
+    this.actualErrorMessage.set(null);
+    this.showActualModal.set(true);
+  }
+
+  closeActualModal(): void {
+    this.showActualModal.set(false);
+    this.actualErrorMessage.set(null);
+  }
+
+  onTotalTimeChange(): void {
+    const total = this.totalMachiningTimeSec();
+    const qty = this.actualForm.quantity;
+    if (total !== null && total >= 0 && qty > 0) {
+      this.actualForm.actualCycleTimeSec = Math.round((total / qty) * 1000) / 1000;
+    }
+  }
+
+  handleCreateActualCycleTime(): void {
+    const q = this.quote();
+    if (!q) return;
+
+    if (this.actualInputMode() === 'total') {
+      this.onTotalTimeChange();
+    }
+
+    if (!this.actualForm.quantity || this.actualForm.quantity <= 0) {
+      this.actualErrorMessage.set('加工数量は1以上で入力してください。');
+      return;
+    }
+
+    if (this.actualForm.actualCycleTimeSec === undefined || this.actualForm.actualCycleTimeSec < 0) {
+      this.actualErrorMessage.set('実績サイクルタイムは0以上で入力してください。');
+      return;
+    }
+
+    this.isSubmittingActual.set(true);
+    this.actualErrorMessage.set(null);
+
+    this.actualCycleTimeService.createActualCycleTime(q.id, this.actualForm).subscribe({
+      next: () => {
+        this.isSubmittingActual.set(false);
+        this.showActualModal.set(false);
+        this.actualSuccessMessage.set('加工実績を登録しました。');
+        setTimeout(() => this.actualSuccessMessage.set(null), 3500);
+        this.loadActualCycleTimes(q.id);
+        this.loadComparison(q.id);
+      },
+      error: (err) => {
+        this.isSubmittingActual.set(false);
+        const msg = err?.error?.error?.message || '実績の登録に失敗しました。';
+        this.actualErrorMessage.set(msg);
+      },
+    });
+  }
+
+  handleDeleteActualCycleTime(id: number): void {
+    const q = this.quote();
+    if (!q) return;
+
+    if (!confirm('この加工実績レコードを削除してもよろしいですか？')) {
+      return;
+    }
+
+    this.actualCycleTimeService.deleteActualCycleTime(id).subscribe({
+      next: () => {
+        this.actualSuccessMessage.set('加工実績を削除しました。');
+        setTimeout(() => this.actualSuccessMessage.set(null), 3500);
+        this.loadActualCycleTimes(q.id);
+        this.loadComparison(q.id);
+      },
+      error: (err) => {
+        const msg = err?.error?.error?.message || '実績の削除に失敗しました。';
+        alert(msg);
       },
     });
   }

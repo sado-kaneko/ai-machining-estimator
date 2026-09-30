@@ -229,6 +229,13 @@
             >
               自動旋盤計算 ({{ latheOperations().length }})
             </button>
+            <button
+              class="tab-btn"
+              [class.active]="activeTab() === 'actual'"
+              (click)="activeTab.set('actual')"
+            >
+              実績比較 ({{ actualCycleTimes().length }})
+            </button>
           </div>
         </div>
 
@@ -655,6 +662,135 @@
               }
             </div>
           }
+
+          <!-- 実績フィードバック・比較タブ表示エリア (PHASE10) -->
+          @if (activeTab() === 'actual') {
+            <div class="actual-box">
+              <div class="section-header-flex">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <h3>加工実績・サイクルタイム差異比較</h3>
+                    @if (comparison(); as comp) {
+                      <span
+                        class="badge"
+                        [class.badge-diff-plus]="comp.differenceSec > 0"
+                        [class.badge-diff-minus]="comp.differenceSec <= 0"
+                      >
+                        差異: {{ comp.differenceSec > 0 ? ('+' + comp.differenceSec) : comp.differenceSec }} 秒 ({{ comp.differenceRate > 0 ? ('+' + comp.differenceRate) : comp.differenceRate }}%)
+                      </span>
+                    }
+                  </div>
+                  <p class="section-subtext">見積計算値と現場加工実績を蓄積・比較し、見積精度の改善ループを構築します。</p>
+                </div>
+                <div class="header-actions">
+                  <button class="btn btn-primary btn-sm" (click)="openActualModal()">
+                    ＋ 加工実績を登録
+                  </button>
+                </div>
+              </div>
+
+              @if (actualSuccessMessage()) {
+                <div class="alert alert-success">{{ actualSuccessMessage() }}</div>
+              }
+              @if (actualErrorMessage()) {
+                <div class="alert alert-error">{{ actualErrorMessage() }}</div>
+              }
+
+              <!-- 差異比較サマリカード -->
+              @if (comparison(); as comp) {
+                <div class="ct-summary-cards">
+                  <div class="ct-card">
+                    <span class="ct-card-label">使用設備</span>
+                    <span class="ct-card-value font-highlight">{{ comp.machineName }}</span>
+                    <span class="ct-card-sub">蓄積ロット数: {{ comp.actualCount }} 回</span>
+                  </div>
+
+                  <div class="ct-card">
+                    <span class="ct-card-label">見積CT (1個あたり)</span>
+                    <span class="ct-card-value">{{ comp.estimateSec }} 秒</span>
+                    <span class="ct-card-sub">理論計算サイクルタイム</span>
+                  </div>
+
+                  <div class="ct-card">
+                    <span class="ct-card-label">実績CT (加重平均/個)</span>
+                    <span class="ct-card-value font-bold">{{ comp.actualSec }} 秒</span>
+                    <span class="ct-card-sub">最終加工日: {{ comp.latestActualDate || '-' }}</span>
+                  </div>
+
+                  <div
+                    class="ct-card"
+                    [class.ct-card-diff-plus]="comp.differenceSec > 0"
+                    [class.ct-card-diff-minus]="comp.differenceSec <= 0"
+                  >
+                    <span class="ct-card-label">差異 (実績 - 見積)</span>
+                    <span class="ct-card-value">
+                      {{ comp.differenceSec > 0 ? ('+' + comp.differenceSec) : comp.differenceSec }} 秒
+                    </span>
+                    <span class="ct-card-sub font-bold">
+                      差異率: {{ comp.differenceRate > 0 ? ('+' + comp.differenceRate) : comp.differenceRate }} %
+                    </span>
+                  </div>
+                </div>
+              } @else if (actualCycleTimes().length === 0) {
+                <div class="no-drawings mt-2">
+                  <p>まだ加工実績が登録されていません。「＋ 加工実績を登録」ボタンから加工日・実加工時間・ロット数量を入力してください。</p>
+                </div>
+              }
+
+              <!-- 実績履歴一覧テーブル -->
+              <div class="actual-history-section mt-4">
+                <div class="section-header-flex">
+                  <h4>加工実績履歴 ({{ actualCycleTimes().length }}件)</h4>
+                </div>
+
+                @if (isLoadingActual()) {
+                  <div class="loading">実績データを読み込み中...</div>
+                } @else if (actualCycleTimes().length === 0) {
+                  <p class="no-drawings">履歴レコードはありません。</p>
+                } @else {
+                  <div class="drawings-table-wrapper">
+                    <table class="data-table actual-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 50px;">No</th>
+                          <th style="width: 100px;">加工日</th>
+                          <th>設備</th>
+                          <th style="width: 90px;" class="text-right">加工数量</th>
+                          <th style="width: 110px;" class="text-right">実績1個CT</th>
+                          <th style="width: 110px;" class="text-right">段取時間</th>
+                          <th style="width: 100px;">作業担当者</th>
+                          <th>備考 / 特記事項</th>
+                          <th style="width: 70px;">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (item of actualCycleTimes(); track item.id; let i = $index) {
+                          <tr>
+                            <td class="text-center font-bold">{{ i + 1 }}</td>
+                            <td>{{ item.productionDate || '-' }}</td>
+                            <td>{{ item.machineName || '未指定' }}</td>
+                            <td class="text-right font-bold">{{ item.quantity }} 個</td>
+                            <td class="text-right font-highlight">{{ item.actualCycleTimeSec }} 秒</td>
+                            <td class="text-right text-muted">{{ item.setupTimeSec > 0 ? (item.setupTimeSec + ' 秒') : '-' }}</td>
+                            <td>{{ item.operatorName || '-' }}</td>
+                            <td class="notes-cell">{{ item.notes || '-' }}</td>
+                            <td>
+                              <button
+                                class="btn btn-danger btn-sm"
+                                (click)="handleDeleteActualCycleTime(item.id)"
+                              >
+                                削除
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            </div>
+          }
         } @else {
           <div class="no-analysis-box">
             <p>図面のAI解析がまだ実行されていません。「AI解析」ボタンをクリックして図面解析を実行してください。</p>
@@ -814,6 +950,136 @@
             <div class="modal-footer">
               <button class="btn btn-secondary" (click)="closeEditOperationModal()">キャンセル</button>
               <button class="btn btn-primary" (click)="saveOperation()">保存する</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- 実績登録モーダル (PHASE10) -->
+      @if (showActualModal()) {
+        <div class="modal-backdrop">
+          <div class="modal-content modal-actual">
+            <div class="modal-header">
+              <h3>加工実績の登録</h3>
+              <button class="modal-close" (click)="closeActualModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+              @if (actualErrorMessage()) {
+                <div class="alert alert-error">{{ actualErrorMessage() }}</div>
+              }
+
+              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                  <label>加工設備</label>
+                  <select [(ngModel)]="actualForm.machineId" class="form-control">
+                    <option [ngValue]="null">（未指定）</option>
+                    @for (m of machines(); track m.id) {
+                      <option [ngValue]="m.id">{{ m.machineName }} ({{ m.maker || '-' }})</option>
+                    }
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>加工日</label>
+                  <input
+                    type="date"
+                    [(ngModel)]="actualForm.productionDate"
+                    class="form-control"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                  <label>加工数量 (個) *</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="actualForm.quantity"
+                    (ngModelChange)="onTotalTimeChange()"
+                    class="form-control"
+                    min="1"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>入力方式</label>
+                  <select [(ngModel)]="actualInputMode" class="form-control">
+                    <option value="unit">1個あたり秒を直接入力</option>
+                    <option value="total">ロット総加工時間から算出</option>
+                  </select>
+                </div>
+              </div>
+
+              @if (actualInputMode() === 'total') {
+                <div class="form-group highlight-box">
+                  <label>ロット総加工時間 (秒) *</label>
+                  <input
+                    type="number"
+                    [ngModel]="totalMachiningTimeSec()"
+                    (ngModelChange)="totalMachiningTimeSec.set($event); onTotalTimeChange()"
+                    class="form-control"
+                    min="0"
+                    step="0.1"
+                    placeholder="例: 5250 (100個の場合 52.5秒/個)"
+                  />
+                  <small class="help-text">
+                    算出値: 1個あたり約 {{ actualForm.actualCycleTimeSec }} 秒
+                  </small>
+                </div>
+              } @else {
+                <div class="form-group">
+                  <label>実績サイクルタイム (1個あたり秒) *</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="actualForm.actualCycleTimeSec"
+                    class="form-control font-bold"
+                    min="0"
+                    step="0.001"
+                    placeholder="例: 52.5"
+                  />
+                </div>
+              }
+
+              <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                  <label>段取り時間 (秒)</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="actualForm.setupTimeSec"
+                    class="form-control"
+                    min="0"
+                    step="1"
+                    placeholder="例: 1800 (30分)"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>作業担当者</label>
+                  <input
+                    type="text"
+                    [(ngModel)]="actualForm.operatorName"
+                    class="form-control"
+                    placeholder="例: 佐藤"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>備考 / 差異要因（工具摩耗・チャック調整など）</label>
+                <textarea
+                  [(ngModel)]="actualForm.notes"
+                  class="form-control"
+                  rows="2"
+                  placeholder="メモや特記事項を入力"
+                ></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" (click)="closeActualModal()">キャンセル</button>
+              <button
+                class="btn btn-primary"
+                (click)="handleCreateActualCycleTime()"
+                [disabled]="isSubmittingActual()"
+              >
+                {{ isSubmittingActual() ? '登録中...' : '実績を登録する' }}
+              </button>
             </div>
           </div>
         </div>

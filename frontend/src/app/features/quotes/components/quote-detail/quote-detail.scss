@@ -336,3 +336,64 @@
   margin-top: 0.5rem;
 }
 
+.mt-4 {
+  margin-top: 1.5rem;
+}
+
+/* PHASE10: 実績フィードバック・差異表示スタイル */
+.badge-diff-plus {
+  background: #fff5f5;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+  font-weight: 600;
+}
+
+.badge-diff-minus {
+  background: #f0fff4;
+  color: #276749;
+  border: 1px solid #9ae6b4;
+  font-weight: 600;
+}
+
+.ct-card-diff-plus {
+  background: #fff5f5;
+  border-color: #feb2b2;
+  .ct-card-value {
+    color: #c53030;
+  }
+}
+
+.ct-card-diff-minus {
+  background: #f0fff4;
+  border-color: #9ae6b4;
+  .ct-card-value {
+    color: #276749;
+  }
+}
+
+.actual-box {
+  padding: 0.5rem 0;
+}
+
+.actual-table {
+  font-size: 0.85rem;
+  .notes-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.highlight-box {
+  background: #ebf8ff;
+  border: 1px dashed #bee3f8;
+  padding: 0.75rem;
+  border-radius: 4px;
+}
+
+.modal-actual {
+  max-width: 550px;
+}
+
+
