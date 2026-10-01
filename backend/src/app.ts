@@ -16,6 +16,8 @@ import productionSyncRoutes from './routes/production-sync.routes';
 import productionAnalysisRoutes from './routes/production-analysis.routes';
 import correctionRoutes from './routes/correction.routes';
 import quoteManagementRoutes from './routes/quote-management.routes';
+import similarityRoutes from './routes/similarity.routes';
+import accuracyRoutes from './routes/accuracy.routes';
 
 const app = express();
 
@@ -26,6 +28,12 @@ app.use(express.json());
 
 // ヘルスチェックルーターのマウント (/api/health, /api/health/database)
 app.use('/api/health', healthRoutes);
+
+// PHASE18: 類似加工検索ルーターのマウント (/api/quotes/:id/similar)
+app.use('/api', similarityRoutes);
+
+// PHASE18: 予測精度分析ルーターのマウント (/api/accuracy/...)
+app.use('/api', accuracyRoutes);
 
 // PHASE17: 見積業務管理ルーターのマウント (/api/quotes/search/similar, /api/quotes/:id/complete, /api/quotes/:id/basis, /api/quotes/:id/history)
 app.use('/api', quoteManagementRoutes);

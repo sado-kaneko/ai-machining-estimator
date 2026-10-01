@@ -21,6 +21,7 @@
 
 .filter-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   background: #f8fafc;
   padding: 0.75rem 1rem;
@@ -29,10 +30,12 @@
 
   .search-input-box {
     flex: 1;
+    min-width: 240px;
   }
 
   .status-filter-box {
     width: 220px;
+    min-width: 180px;
   }
 
   .form-control {
@@ -118,6 +121,7 @@
 
 .data-table {
   width: 100%;
+  min-width: 840px;
   border-collapse: collapse;
   text-align: left;
 

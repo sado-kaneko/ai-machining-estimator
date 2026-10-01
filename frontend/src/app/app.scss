@@ -73,6 +73,42 @@
         color: #2c5282;
       }
     }
+
+    &.nav-highlight-accuracy {
+      background: #fdf2f8;
+      border: 1px solid #fbcfe8;
+      color: #be185d;
+
+      &:hover {
+        background: #fbcfe8;
+        color: #9d174d;
+      }
+    }
+  }
+
+  @media (max-width: 900px) {
+    padding: 0.6rem 1rem;
+
+    .header-inner {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+    }
+
+    .header-nav {
+      width: 100%;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .nav-link {
+      font-size: 0.85rem;
+      padding: 0.35rem 0.65rem;
+    }
   }
 }
 

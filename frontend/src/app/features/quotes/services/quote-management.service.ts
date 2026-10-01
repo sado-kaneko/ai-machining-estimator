@@ -10,6 +10,7 @@ import {
   QuoteStatus,
   SimilarQuoteItem,
 } from '../models/quote-management.model';
+import { SimilarQuoteSearchResponse } from '../../../core/models/similarity.model';
 
 @Injectable({
   providedIn: 'root',
@@ -77,6 +78,14 @@ export class QuoteManagementService {
     return this.http.get<{ items: SimilarQuoteItem[] }>(`${this.baseUrl}/quotes/search/similar`, {
       params,
     });
+  }
+
+  /**
+   * PHASE18: 高度類似加工案件検索
+   * GET /api/quotes/:id/similar
+   */
+  getAdvancedSimilarQuotes(quoteId: number, limit = 10): Observable<SimilarQuoteSearchResponse> {
+    return this.http.get<SimilarQuoteSearchResponse>(`${this.baseUrl}/quotes/${quoteId}/similar?limit=${limit}`);
   }
 
   /**

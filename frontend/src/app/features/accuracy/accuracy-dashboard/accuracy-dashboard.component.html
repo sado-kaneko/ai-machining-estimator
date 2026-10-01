@@ -1,0 +1,535 @@
+<div class="accuracy-container">
+  <!-- ページヘッダー -->
+  <div class="page-header">
+    <div class="header-text">
+      <div class="title-row">
+        <h1>🎯 予測精度分析ダッシュボード</h1>
+        <span class="badge badge-accent">PHASE 18</span>
+      </div>
+      <p class="subtitle">
+        理論計算・実績補正サイクルタイムと実加工時間との差異を継続的に評価し、NC自動旋盤の見積予測精度を向上させます。
+      </p>
+    </div>
+    <div class="header-actions">
+      <button
+        class="btn btn-primary"
+        (click)="handleExecuteEvaluation()"
+        [disabled]="isExecuting()"
+      >
+        <span class="btn-icon">{{ isExecuting() ? '⏳' : '🔄' }}</span>
+        {{ isExecuting() ? '精度評価を実行中...' : '精度評価を実行・最新化' }}
+      </button>
+    </div>
+  </div>
+
+  @if (successMessage()) {
+    <div class="alert alert-success">
+      {{ successMessage() }}
+    </div>
+  }
+  @if (errorMessage()) {
+    <div class="alert alert-error">
+      {{ errorMessage() }}
+    </div>
+  }
+
+  @if (isLoading()) {
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <p>精度評価データを読み込み中...</p>
+    </div>
+  } @else {
+    <!-- 1. 全体KPIサマリグリッド -->
+    @if (summary(); as s) {
+      <div class="kpi-grid mb-4">
+        <div class="kpi-card highlight-card">
+          <div class="kpi-title">評価済案件数</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ s.totalEvaluations }}</span>
+            <span class="kpi-unit">件</span>
+          </div>
+          <div class="kpi-foot text-muted">実績照合完了</div>
+        </div>
+
+        <div class="kpi-card" [class.kpi-good]="s.avgAbsoluteErrorRate <= 5.0">
+          <div class="kpi-title">平均絶対誤差率</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ s.avgAbsoluteErrorRate }}</span>
+            <span class="kpi-unit">%</span>
+          </div>
+          <div class="kpi-foot">中央値: <strong>{{ s.medianAbsoluteErrorRate }}%</strong></div>
+        </div>
+
+        <div class="kpi-card kpi-good">
+          <div class="kpi-title">誤差 10% 以内</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ s.within10PercentRate }}</span>
+            <span class="kpi-unit">%</span>
+          </div>
+          <div class="kpi-foot">{{ s.within10PercentCount }} / {{ s.totalEvaluations }} 件 (高適合)</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-title">誤差 20% 以内</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ s.within20PercentRate }}</span>
+            <span class="kpi-unit">%</span>
+          </div>
+          <div class="kpi-foot">{{ s.within20PercentCount }} / {{ s.totalEvaluations }} 件</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-title">過小 / 過大予測傾向</div>
+          <div class="kpi-value-row">
+            <span class="kpi-sub-badge badge-under">過小: {{ s.underPredictionCount }}</span>
+            <span class="kpi-sub-badge badge-over">過大: {{ s.overPredictionCount }}</span>
+          </div>
+          <div class="kpi-foot">平均符号誤差: <strong>{{ s.avgErrorRate > 0 ? '+' : '' }}{{ s.avgErrorRate }}%</strong></div>
+        </div>
+      </div>
+    }
+
+    <!-- 2. 補正有効性比較カード (理論CT vs 補正後CT) -->
+    @if (correctionEffect(); as ce) {
+      @if (ce.sampleCount > 0) {
+        <div class="content-card effect-card mb-4">
+          <div class="card-header">
+            <div>
+              <h3>⚖️ 実績補正Engineの有効性評価 (理論CT vs 補正CT)</h3>
+              <p class="card-desc">PHASE16で導入した実績補正Engineによる予測誤差の改善度合いを比較評価します。</p>
+            </div>
+            <div class="effect-badge" [class.badge-improved]="ce.improvementRate >= 0">
+              改善率: <strong>{{ ce.improvementRate > 0 ? '+' : '' }}{{ ce.improvementRate }}%</strong>
+            </div>
+          </div>
+          <div class="effect-grid mt-3">
+            <div class="effect-box">
+              <span class="box-label">補正前 (純理論計算CT) 平均誤差率</span>
+              <div class="box-val">{{ ce.beforeCorrectionAvgAbsError }}%</div>
+              <span class="box-sub text-muted">標準切削条件による計算値</span>
+            </div>
+            <div class="effect-arrow">&rarr;</div>
+            <div class="effect-box box-highlight">
+              <span class="box-label">補正後 (実績補正CT) 平均誤差率</span>
+              <div class="box-val text-success">{{ ce.afterCorrectionAvgAbsError }}%</div>
+              <span class="box-sub text-muted">機械・材料補正適用後</span>
+            </div>
+            <div class="effect-summary">
+              <span class="summary-label">評価対象件数</span>
+              <span class="summary-val">{{ ce.sampleCount }} 件</span>
+              <p class="summary-desc">
+                @if (ce.improvementRate > 0) {
+                  実績補正により予測誤差が平均して <strong>{{ ce.improvementRate }}%</strong> 圧縮され、見積精度が向上しています。
+                } @else {
+                  補正条件と現場加工時間とのさらなるフィードバック調整が必要です。
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+    }
+
+    <!-- 3. タブナビゲーション -->
+    <div class="tabs-nav mb-3">
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'machines'"
+        (click)="activeTab.set('machines')"
+      >
+        🏭 設備別精度 ({{ machines().length }})
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'materials'"
+        (click)="activeTab.set('materials')"
+      >
+        🧱 材料別精度 ({{ materials().length }})
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'trends'"
+        (click)="activeTab.set('trends')"
+      >
+        📈 月別推移 ({{ trends().length }})
+      </button>
+      <button
+        class="tab-btn tab-highlight"
+        [class.active]="activeTab() === 'candidates'"
+        (click)="activeTab.set('candidates')"
+      >
+        💡 補正改善候補 ({{ candidates().length }})
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'records'"
+        (click)="activeTab.set('records')"
+      >
+        📄 評価明細一覧 ({{ records().length }})
+      </button>
+    </div>
+
+    <!-- 4. タブコンテンツ -->
+
+    <!-- タブ1: 設備別精度 -->
+    @if (activeTab() === 'machines') {
+      <div class="content-card">
+        <div class="card-header">
+          <div>
+            <h3>設備別 サイクルタイム予測精度</h3>
+            <p class="card-desc">NC自動旋盤（Citizen Cincom各機種）別の予測誤差率と過小・過大傾向です。</p>
+          </div>
+        </div>
+        <div class="table-container mt-3">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>設備名</th>
+                <th class="text-right">評価件数</th>
+                <th class="text-right">平均絶対誤差率</th>
+                <th class="text-right">中央絶対誤差率</th>
+                <th class="text-right">過小予測率 (実績 > 予測)</th>
+                <th class="text-right">過大予測率 (実績 < 予測)</th>
+                <th>精度評価</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of machines(); track m.machineName) {
+                <tr>
+                  <td class="font-bold font-mono">{{ m.machineName }}</td>
+                  <td class="text-right">{{ m.sampleCount }} 件</td>
+                  <td class="text-right font-bold" [class.text-success]="m.avgAbsoluteErrorRate <= 5.0">
+                    {{ m.avgAbsoluteErrorRate }}%
+                  </td>
+                  <td class="text-right">{{ m.medianAbsoluteErrorRate }}%</td>
+                  <td class="text-right text-muted">{{ m.underPredictionRate }}%</td>
+                  <td class="text-right text-muted">{{ m.overPredictionRate }}%</td>
+                  <td>
+                    @if (m.avgAbsoluteErrorRate <= 5.0) {
+                      <span class="badge badge-success">高精度 (優)</span>
+                    } @else if (m.avgAbsoluteErrorRate <= 10.0) {
+                      <span class="badge badge-primary">良好 (良)</span>
+                    } @else {
+                      <span class="badge badge-warning">要改善候補</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- タブ2: 材料別精度 -->
+    @if (activeTab() === 'materials') {
+      <div class="content-card">
+        <div class="card-header">
+          <div>
+            <h3>材料別 サイクルタイム予測精度</h3>
+            <p class="card-desc">加工対象材料別の平均絶対誤差率とサンプル数に基づく信頼度評価です。</p>
+          </div>
+        </div>
+        <div class="table-container mt-3">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>材料名</th>
+                <th class="text-right">評価件数</th>
+                <th class="text-right">平均絶対誤差率</th>
+                <th>信頼度 (サンプル数)</th>
+                <th>傾向</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (mat of materials(); track mat.materialName) {
+                <tr>
+                  <td class="font-bold">{{ mat.materialName }}</td>
+                  <td class="text-right">{{ mat.sampleCount }} 件</td>
+                  <td class="text-right font-bold" [class.text-success]="mat.avgAbsoluteErrorRate <= 5.0">
+                    {{ mat.avgAbsoluteErrorRate }}%
+                  </td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.badge-success]="mat.confidenceLevel === 'HIGH'"
+                      [class.badge-primary]="mat.confidenceLevel === 'MEDIUM'"
+                      [class.badge-secondary]="mat.confidenceLevel === 'LOW'"
+                    >
+                      {{ mat.confidenceLevel }}
+                    </span>
+                  </td>
+                  <td>
+                    @if (mat.sampleCount >= 20) {
+                      <span class="text-success">十分な蓄積データあり</span>
+                    } @else {
+                      <span class="text-muted">サンプル収集中</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- タブ3: 月別推移 -->
+    @if (activeTab() === 'trends') {
+      <div class="content-card">
+        <div class="card-header">
+          <div>
+            <h3>月別 サイクルタイム予測精度推移</h3>
+            <p class="card-desc">実績フィードバックと補正係数適用による予測誤差率の月次推移です。</p>
+          </div>
+        </div>
+        <div class="table-container mt-3">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>年月</th>
+                <th class="text-right">評価件数</th>
+                <th class="text-right">平均絶対誤差率</th>
+                <th class="text-right">平均符号付き誤差率</th>
+                <th>精度推移バー</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (t of trends(); track t.month) {
+                <tr>
+                  <td class="font-mono font-bold">{{ t.month }}</td>
+                  <td class="text-right">{{ t.sampleCount }} 件</td>
+                  <td class="text-right font-bold">{{ t.avgAbsoluteErrorRate }}%</td>
+                  <td class="text-right text-muted">
+                    {{ t.avgErrorRate > 0 ? '+' : '' }}{{ t.avgErrorRate }}%
+                  </td>
+                  <td>
+                    <div class="progress-bar-container">
+                      <div
+                        class="progress-fill"
+                        [style.width.%]="t.avgAbsoluteErrorRate > 100 ? 100 : (t.avgAbsoluteErrorRate * 5)"
+                        [class.progress-good]="t.avgAbsoluteErrorRate <= 5.0"
+                      ></div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- タブ4: 補正改善候補 (技術者承認フロー) -->
+    @if (activeTab() === 'candidates') {
+      <div class="content-card">
+        <div class="card-header">
+          <div>
+            <h3>💡 実績フィードバック型 補正係数改善候補</h3>
+            <p class="card-desc">
+              蓄積された加工実績から最近の誤差傾向を分析し、より高精度な補正係数候補を算出しています。
+              <strong>※ 自動適用は禁止されており、技術者の確認・承認によってのみ更新されます。</strong>
+            </p>
+          </div>
+        </div>
+        <div class="table-container mt-3">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>設備名</th>
+                <th>材料名</th>
+                <th>工程</th>
+                <th class="text-right">現在倍率</th>
+                <th class="text-right">実績差異</th>
+                <th class="text-right font-bold">改善候補倍率</th>
+                <th class="text-right">サンプル数</th>
+                <th>信頼度</th>
+                <th>ステータス</th>
+                <th style="width: 120px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of candidates(); track c.id) {
+                <tr>
+                  <td class="font-mono text-center">{{ c.id }}</td>
+                  <td class="font-bold">{{ c.machineName }}</td>
+                  <td>{{ c.materialName }}</td>
+                  <td><span class="badge badge-secondary">{{ c.processType }}</span></td>
+                  <td class="text-right font-mono">&times;{{ c.currentFactor }}</td>
+                  <td class="text-right font-mono" [class.text-danger]="c.avgErrorRate > 3" [class.text-success]="c.avgErrorRate <= 0">
+                    {{ c.avgErrorRate > 0 ? '+' : '' }}{{ c.avgErrorRate }}%
+                  </td>
+                  <td class="text-right font-bold font-mono font-highlight">
+                    &times;{{ c.suggestedFactor }}
+                  </td>
+                  <td class="text-right">{{ c.sampleCount }} 件</td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.badge-success]="c.confidenceLevel === 'HIGH'"
+                      [class.badge-primary]="c.confidenceLevel === 'MEDIUM'"
+                      [class.badge-secondary]="c.confidenceLevel === 'LOW'"
+                    >
+                      {{ c.confidenceLevel }}
+                    </span>
+                  </td>
+                  <td>
+                    @if (c.status === 'APPROVED') {
+                      <span class="badge badge-success">✓ 承認済</span>
+                    } @else if (c.status === 'PENDING') {
+                      <span class="badge badge-warning">⚠️ 改善推奨</span>
+                    } @else {
+                      <span class="badge badge-secondary">収集中</span>
+                    }
+                  </td>
+                  <td>
+                    <button
+                      class="btn btn-primary btn-xs"
+                      (click)="openApprovalModal(c)"
+                      [disabled]="c.sampleCount < 20 && c.status !== 'APPROVED'"
+                    >
+                      {{ c.status === 'APPROVED' ? '再設定' : '確認・承認' }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- タブ5: 評価明細一覧 -->
+    @if (activeTab() === 'records') {
+      <div class="content-card">
+        <div class="card-header">
+          <div>
+            <h3>📄 予測精度評価 明細レコード一覧</h3>
+            <p class="card-desc">個別の案件について算出された予測CTと実績CTの比較ログです。</p>
+          </div>
+        </div>
+        <div class="table-container mt-3">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>案件ID</th>
+                <th>見積番号</th>
+                <th>図番</th>
+                <th>設備</th>
+                <th>材料</th>
+                <th class="text-right">理論CT</th>
+                <th class="text-right">最終予測CT</th>
+                <th class="text-right">実績CT</th>
+                <th class="text-right">誤差秒</th>
+                <th class="text-right font-bold">絶対誤差率</th>
+                <th>評価日時</th>
+                <th style="width: 70px;">詳細</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of records(); track r.id) {
+                <tr>
+                  <td class="font-mono text-center">#{{ r.quoteId }}</td>
+                  <td class="font-mono">{{ r.quoteNo || '-' }}</td>
+                  <td class="font-bold">{{ r.partNo || '-' }}</td>
+                  <td>{{ r.machineName || '-' }}</td>
+                  <td>{{ r.materialName || '-' }}</td>
+                  <td class="text-right text-muted">{{ r.theoreticalCt ? r.theoreticalCt + 's' : '-' }}</td>
+                  <td class="text-right font-bold">{{ r.predictionCt }}s</td>
+                  <td class="text-right font-highlight font-bold">{{ r.actualCt }}s</td>
+                  <td class="text-right font-mono" [class.text-danger]="r.errorSeconds > 0" [class.text-success]="r.errorSeconds <= 0">
+                    {{ r.errorSeconds > 0 ? '+' : '' }}{{ r.errorSeconds }}s
+                  </td>
+                  <td class="text-right font-bold" [class.text-success]="(r.absoluteErrorRate * 100) <= 5.0">
+                    {{ (r.absoluteErrorRate * 100) | number: '1.2-2' }}%
+                  </td>
+                  <td class="text-muted text-xs">{{ r.evaluatedAt | date: 'yyyy/MM/dd HH:mm' }}</td>
+                  <td>
+                    <a [routerLink]="['/quotes', r.quoteId]" class="btn btn-outline-primary btn-xs">
+                      案件 &rarr;
+                    </a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- 承認確認モーダル (Section 29: 技術者承認フロー) -->
+  @if (showApprovalModal() && selectedCandidate(); as cand) {
+    <div class="modal-backdrop" (click)="closeApprovalModal()">
+      <div class="modal-dialog" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>🛠️ 補正係数改善候補の確認・承認</h3>
+          <button class="modal-close" (click)="closeApprovalModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="alert alert-info">
+            蓄積された加工実績（サンプル数: {{ cand.sampleCount }}件）に基づき、サイクルタイム予測Engineの補正倍率を更新します。
+          </div>
+
+          <div class="form-grid">
+            <div class="form-item">
+              <label>対象設備</label>
+              <input type="text" [value]="cand.machineName" class="form-control" disabled />
+            </div>
+
+            <div class="form-item">
+              <label>対象材料</label>
+              <input type="text" [value]="cand.materialName" class="form-control" disabled />
+            </div>
+
+            <div class="form-item">
+              <label>現在の補正倍率</label>
+              <input type="text" [value]="'&times;' + cand.currentFactor" class="form-control" disabled />
+            </div>
+
+            <div class="form-item">
+              <label>実績差異傾向</label>
+              <input type="text" [value]="(cand.avgErrorRate > 0 ? '+' : '') + cand.avgErrorRate + '%'" class="form-control" disabled />
+            </div>
+
+            <div class="form-item full-width">
+              <label class="font-bold text-primary">適用する補正倍率 (改善推奨値)</label>
+              <input
+                type="number"
+                step="0.001"
+                min="0.5"
+                max="2.0"
+                [(ngModel)]="editSuggestedFactor"
+                class="form-control font-bold font-highlight"
+              />
+              <span class="help-text">推奨値: &times;{{ cand.suggestedFactor }} (必要に応じて微調整可能)</span>
+            </div>
+
+            <div class="form-item full-width">
+              <label>承認者名</label>
+              <input
+                type="text"
+                [(ngModel)]="approvalOperator"
+                class="form-control"
+                placeholder="例: 技術担当者 高橋"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeApprovalModal()">キャンセル</button>
+          <button
+            class="btn btn-success"
+            (click)="handleConfirmApproval()"
+            [disabled]="isApplying() || !editSuggestedFactor || editSuggestedFactor <= 0"
+          >
+            {{ isApplying() ? '承認更新中...' : '✓ 承認して次回見積へ反映' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

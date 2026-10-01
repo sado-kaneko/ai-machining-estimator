@@ -47,6 +47,7 @@ import {
   QuoteStatus,
   SimilarQuoteItem,
 } from '../../models/quote-management.model';
+import { SimilarQuoteResult } from '../../../../core/models/similarity.model';
 
 import { RouterLink } from '@angular/router';
 
@@ -142,6 +143,7 @@ export class QuoteDetailComponent implements OnInit {
   quoteBasis = signal<QuoteBasis | null>(null);
   quoteManagementHistory = signal<QuoteHistory[]>([]);
   similarQuotes = signal<SimilarQuoteItem[]>([]);
+  advancedSimilarQuotes = signal<SimilarQuoteResult[]>([]);
   isCompletingQuote = signal<boolean>(false);
   isLoadingBasis = signal<boolean>(false);
   isLoadingSimilar = signal<boolean>(false);
@@ -259,6 +261,7 @@ export class QuoteDetailComponent implements OnInit {
     this.loadQuoteResult(id);
     this.loadQuoteBasis(id);
     this.loadQuoteManagementHistory(id);
+    this.loadAdvancedSimilarQuotes(id);
   }
 
   loadQuote(id: number): void {
@@ -1219,6 +1222,21 @@ export class QuoteDetailComponent implements OnInit {
       },
       error: () => {
         this.similarQuotes.set([]);
+        this.isLoadingSimilar.set(false);
+      },
+    });
+  }
+
+  loadAdvancedSimilarQuotes(quoteId: number): void {
+    this.isLoadingSimilar.set(true);
+    this.quoteManagementService.getAdvancedSimilarQuotes(quoteId, 10).subscribe({
+      next: (res) => {
+        this.advancedSimilarQuotes.set(res.results);
+        this.isLoadingSimilar.set(false);
+      },
+      error: (err) => {
+        console.warn('Failed to load advanced similar quotes:', err);
+        this.advancedSimilarQuotes.set([]);
         this.isLoadingSimilar.set(false);
       },
     });

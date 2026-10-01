@@ -1543,24 +1543,100 @@
           }
         </div>
 
-        <!-- 3. 類似過去案件一覧 (指示書第7節、第14節) -->
+        <!-- 3. 類似過去案件一覧 (指示書第6節〜第18節、第33節) -->
         <div class="similar-quotes-card mb-4">
           <div class="section-header-flex">
             <div>
-              <h3>🔍 類似過去案件 (参考CT・再利用候補)</h3>
-              <p class="section-subtext">同一系統の図番・材料・径の過去見積案件です。見積根拠の妥当性確認に活用できます。</p>
+              <h3>🔍 過去類似加工実績 (参考CT・再利用候補)</h3>
+              <p class="section-subtext">
+                材料・設備・素材径・Feature構成・寸法に基づく高精度ルールベース類似判定 (100点満点) による類似部品です。
+              </p>
             </div>
             @if (isLoadingSimilar()) {
-              <span class="text-muted">検索中...</span>
+              <span class="text-muted">類似部品を検索中...</span>
             }
           </div>
 
-          @if (similarQuotes().length === 0) {
-            <div class="empty-box mt-2">
-              <span class="text-muted">類似する過去案件は見つかりませんでした。</span>
+          @if (advancedSimilarQuotes().length > 0) {
+            <div class="table-container mt-2">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 110px;">類似度スコア</th>
+                    <th>図番 / 見積番号</th>
+                    <th>品名</th>
+                    <th>材料 / 素材径</th>
+                    <th>使用設備</th>
+                    <th>Feature構成</th>
+                    <th class="text-right">過去予測CT</th>
+                    <th class="text-right">実加工CT</th>
+                    <th class="text-right">予測誤差率</th>
+                    <th style="width: 75px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (sq of advancedSimilarQuotes(); track sq.targetQuoteId) {
+                    <tr>
+                      <td>
+                        <div class="score-badge-box">
+                          <span
+                            class="badge"
+                            [class.badge-success]="sq.similarityLevel === 'HIGH'"
+                            [class.badge-primary]="sq.similarityLevel === 'MEDIUM'"
+                            [class.badge-warning]="sq.similarityLevel === 'REFERENCE'"
+                            [class.badge-secondary]="sq.similarityLevel === 'LOW'"
+                          >
+                            {{ sq.similarityScore }}点 ({{ sq.similarityLevel }})
+                          </span>
+                          <div class="score-breakdown-mini text-muted text-xs">
+                            材:{{ sq.breakdown.materialScore }} 機:{{ sq.breakdown.machineScore }} 径:{{ sq.breakdown.diameterScore }} F:{{ sq.breakdown.featureScore }}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="font-bold">{{ sq.partNo }}</div>
+                        <div class="font-mono text-muted text-xs">{{ sq.quoteNo || ('#' + sq.targetQuoteId) }}</div>
+                      </td>
+                      <td>{{ sq.partName || '-' }}</td>
+                      <td>
+                        <span class="font-bold">{{ sq.material || '-' }}</span>
+                        @if (sq.diameter) {
+                          <span class="text-muted text-xs"> (φ{{ sq.diameter }}mm)</span>
+                        }
+                      </td>
+                      <td>
+                        <span class="badge badge-secondary">{{ sq.machine || '未指定' }}</span>
+                      </td>
+                      <td>
+                        <span class="feature-tag-summary">{{ sq.featureSummary }}</span>
+                      </td>
+                      <td class="text-right font-bold">
+                        {{ sq.predictedCycleTime ? sq.predictedCycleTime + 's' : '-' }}
+                      </td>
+                      <td class="text-right font-highlight font-bold">
+                        {{ sq.actualCycleTime ? sq.actualCycleTime + 's' : '-' }}
+                      </td>
+                      <td class="text-right font-mono">
+                        @if (sq.errorRate !== null) {
+                          <span [class.text-danger]="sq.errorRate > 0.05" [class.text-success]="sq.errorRate <= 0.02">
+                            {{ sq.errorRate > 0 ? '+' : '' }}{{ (sq.errorRate * 100) | number: '1.1-1' }}%
+                          </span>
+                        } @else {
+                          <span class="text-muted">-</span>
+                        }
+                      </td>
+                      <td>
+                        <a [routerLink]="['/quotes', sq.targetQuoteId]" target="_blank" class="btn btn-outline-primary btn-xs">
+                          参照 &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
-          } @else {
-            <div class="table-wrapper mt-2">
+          } @else if (similarQuotes().length > 0) {
+            <div class="table-container mt-2">
               <table class="data-table">
                 <thead>
                   <tr>
@@ -1595,6 +1671,10 @@
                   }
                 </tbody>
               </table>
+            </div>
+          } @else {
+            <div class="empty-box mt-2">
+              <span class="text-muted">類似する過去加工案件は見つかりませんでした。</span>
             </div>
           }
         </div>

@@ -1,1 +1,69 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global Application Styles & Responsive Utilities (PHASE 18) */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1e293b;
+  background-color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* アプリケーション全体コンテナのオーバーフロー防止 */
+app-root,
+.app-main {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 共通レスポンシブテーブルコンテナ (Section 38: 横スクロール許可) */
+.table-container,
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
+}
+
+/* 共通レスポンシブグリッド */
+.responsive-grid,
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* 共通レスポンシブフォームグリッド */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+/* 共通アクションボタングループ */
+.actions,
+.action-group,
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 長文テキスト折り返し */
+.long-text,
+.text-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
