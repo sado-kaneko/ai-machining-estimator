@@ -185,10 +185,15 @@ export class CycleTimeService {
     if (rpm < 50) rpm = 50;
     rpm = Math.round(rpm * 100) / 100;
 
-    // 送り速度: F = RPM * f (mm/min)
+    // 送り速度: F = RPM * f (粗加工送り mm/min)
     let feedRate = rpm * feedPerRev;
     if (feedRate <= 0) feedRate = 50.0;
     feedRate = Math.round(feedRate * 100) / 100;
+
+    // 仕上げ送りの設定 (粗加工送りの約60%で面粗さ・精度を確保)
+    const finishFeedPerRev = feedPerRev * 0.6;
+    let finishFeedRate = Math.round(rpm * finishFeedPerRev * 100) / 100;
+    if (finishFeedRate <= 0) finishFeedRate = 30.0;
 
     let cuttingTimeSec = 0;
     const nonCuttingTimeSec = this.DEFAULT_OPERATION_NON_CUTTING_SEC;
@@ -197,10 +202,12 @@ export class CycleTimeService {
     switch (opType) {
       case 'OD':
       case 'ID': {
-        // 加工時間 = (加工長 / 送り速度) * 60秒
-        // 荒加工パス数を考慮 (デフォルト1パス)
-        const passes = op.passes > 0 ? op.passes : 1;
-        cuttingTimeSec = (length / feedRate) * 60 * passes;
+        // 外径・内径: 粗加工パス数（荒挽き）＋仕上げ加工1パス（仕上げ挽き）
+        const roughPasses = op.passes > 0 ? op.passes : Math.max(1, ap && ap > 0 ? Math.ceil(2.0 / ap) : 1);
+        const roughTime = (length / feedRate) * 60 * roughPasses;
+        const finishTime = (length / finishFeedRate) * 60;
+        const retractTime = (roughPasses - 1) * 0.6;
+        cuttingTimeSec = roughTime + finishTime + retractTime;
         break;
       }
 
@@ -211,9 +218,11 @@ export class CycleTimeService {
       }
 
       case 'FACE': {
-        // 端面加工: 半径方向切削距離 = D / 2
+        // 端面加工: 粗端面（1パス）＋仕上げ端面（1パス）
         const faceDistance = diameter / 2;
-        cuttingTimeSec = (faceDistance / feedRate) * 60;
+        const roughFaceTime = (faceDistance / feedRate) * 60;
+        const finishFaceTime = (faceDistance / finishFeedRate) * 60;
+        cuttingTimeSec = roughFaceTime + finishFaceTime;
         break;
       }
 

@@ -7,6 +7,11 @@
     <button class="btn btn-primary" (click)="navigateToCreate()">＋ 新規見積登録</button>
   </div>
 
+  @if (successMessage()) {
+    <div class="alert alert-success">
+      {{ successMessage() }}
+    </div>
+  }
   @if (errorMessage()) {
     <div class="alert alert-error">
       {{ errorMessage() }}
@@ -61,12 +66,12 @@
               <th style="width: 90px;">材質</th>
               <th style="width: 110px;">状態</th>
               <th style="width: 140px;">登録日時</th>
-              <th style="width: 80px;" class="text-center">操作</th>
+              <th style="width: 130px;" class="text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             @for (quote of filteredQuotes(); track quote.id) {
-              <tr>
+              <tr class="clickable-row" (click)="navigateToDetail(quote.id)">
                 <td class="font-mono font-bold">{{ quote.quoteNo || ('#' + quote.id) }}</td>
                 <td>{{ quote.customerName }}</td>
                 <td class="font-bold">{{ quote.partNo || '-' }}</td>
@@ -86,10 +91,24 @@
                   </span>
                 </td>
                 <td class="text-muted">{{ quote.createdAt | date: 'yyyy/MM/dd HH:mm' }}</td>
-                <td class="text-center">
-                  <button class="btn btn-outline-primary btn-sm" (click)="navigateToDetail(quote.id)">
-                    詳細 &rarr;
-                  </button>
+                <td class="text-center" (click)="$event.stopPropagation()">
+                  <div class="row-actions">
+                    <button
+                      class="btn btn-outline-primary btn-xs"
+                      (click)="navigateToDetail(quote.id)"
+                      title="詳細画面を開く"
+                    >
+                      詳細 &rarr;
+                    </button>
+                    <button
+                      class="btn btn-outline-danger btn-xs"
+                      (click)="deleteQuote(quote.id, quote.partNo || quote.customerName, $event)"
+                      [disabled]="isDeletingId() === quote.id"
+                      title="案件を削除する"
+                    >
+                      {{ isDeletingId() === quote.id ? '削除中' : '削除' }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             }

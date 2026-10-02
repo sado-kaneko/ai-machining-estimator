@@ -25,6 +25,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.brand-title')?.textContent).toContain('サイクルタイム見積AIシステム');
+    expect(compiled.querySelector('.brand-title')?.textContent).toContain('AIサイクルタイム見積');
   });
 });

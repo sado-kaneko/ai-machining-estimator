@@ -77,17 +77,55 @@ export class AutomaticLatheEngine implements ICalculationEngine {
       // 工程非切削時間（工具交換＋アプローチ）
       const opNonCuttingSec = toolChangeTime + 1.0;
 
-      switch (op.calculation_type) {
-        case 'FEED_TURNING':
-          // 外径・内径: L / F * 60 * 繰返し
-          cuttingTimeSec = (length / feedRate) * 60 * repeats;
-          break;
+      // 仕上げ送りの設定 (粗加工送りの約60%で面粗さ・精度を確保)
+      const finishFeed = feed * 0.6;
+      let finishFeedRate = rpm * finishFeed;
+      if (finishFeedRate <= 0) finishFeedRate = 30.0;
 
-        case 'FEED_FACE':
-          // 端面: (D / 2) / F * 60 (素材径優先)
-          const faceDiam = (stockDiameter && stockDiameter > 0) ? stockDiameter : diameter;
-          cuttingTimeSec = ((faceDiam / 2) / feedRate) * 60;
+      // 切込み深さ ap (マスタ設定値、無ければデフォルト1.5mm)
+      const ap = cond.ap && Number(cond.ap) > 0 ? Number(cond.ap) : 1.5;
+
+      switch (op.calculation_type) {
+        case 'FEED_TURNING': {
+          // 外径・内径加工: 粗加工（荒挽き）＋仕上げ加工（仕上げ挽き）
+          // 1. 取り代の算出 (素材径と加工径の差から半径方向削り深さを求める)
+          let totalStockRadius = 0;
+          if (stockDiameter && stockDiameter > diameter) {
+            totalStockRadius = (stockDiameter - diameter) / 2;
+          } else {
+            // 素材径未指定または同一の場合は標準最小取り代
+            totalStockRadius = Math.max(ap * 1.2, 1.0);
+          }
+
+          // 仕上げ代 (半径 0.2mm)
+          const finishAllowance = 0.2;
+          const roughStockRadius = Math.max(0, totalStockRadius - finishAllowance);
+
+          // 粗加工パス数 (切り込み量 ap に応じて算出、最低1パス)
+          const roughPasses = Math.max(1, Math.ceil(roughStockRadius / ap));
+          // 仕上げ加工パス数 (1パス)
+          const finishPasses = 1;
+
+          // 粗加工時間 (粗送り F = rpm * feed)
+          const roughTime = (length / feedRate) * 60 * roughPasses;
+          // 仕上げ加工時間 (仕上げ送り F_finish = rpm * finishFeed)
+          const finishTime = (length / finishFeedRate) * 60 * finishPasses;
+          // 粗加工パス間の戻り早送り時間 (各荒パス 0.6秒)
+          const retractTime = (roughPasses - 1) * 0.6;
+
+          cuttingTimeSec = (roughTime + finishTime + retractTime) * repeats;
           break;
+        }
+
+        case 'FEED_FACE': {
+          // 端面加工: 端面粗削り（1パス）＋端面仕上げ削り（1パス）
+          const faceDiam = (stockDiameter && stockDiameter > 0) ? stockDiameter : diameter;
+          const faceRadius = faceDiam / 2;
+          const roughFaceTime = (faceRadius / feedRate) * 60;
+          const finishFaceTime = (faceRadius / finishFeedRate) * 60;
+          cuttingTimeSec = roughFaceTime + finishFaceTime;
+          break;
+        }
 
         case 'FEED_DRILL':
         case 'FEED_REAMER':

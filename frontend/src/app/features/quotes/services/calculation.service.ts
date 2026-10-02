@@ -42,10 +42,13 @@ export class CalculationService {
    * 共通計算エンジン経由でサイクルタイム計算を実行
    * POST /api/quotes/:id/cycle-time/calculate
    */
-  calculateCycleTime(quoteId: number): Observable<LatheCycleTimeSummary> {
+  calculateCycleTime(
+    quoteId: number,
+    options?: { maxRpm?: number }
+  ): Observable<LatheCycleTimeSummary> {
     return this.http.post<LatheCycleTimeSummary>(
       `${this.baseUrl}/quotes/${quoteId}/cycle-time/calculate`,
-      {}
+      options || {}
     );
   }
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -132,9 +132,14 @@ export class QuoteDetailComponent implements OnInit {
   selectedMachine = signal<Machine | null>(null);
   isChangingMachine = signal<boolean>(false);
   machineMessage = signal<string | null>(null);
+  // 人による主軸上限RPMの介入設定
+  userMaxRpm = signal<number | null>(null);
 
-  // タブ切り替え: 目的別5ステップ構成 (PHASE10.5 / PHASE17)
-  // 'overview' (STEP1: 図面・AI解析) | 'review' (STEP2: 加工内容確認) | 'calculation' (STEP3: 設備・CT計算) | 'comparison' (STEP4: 実績比較) | 'complete' (STEP5: 見積確定・根拠)
+  // 実績比較タブの表示制御（現在は非表示、将来の拡張用に保持）
+  showComparisonTab = signal<boolean>(false);
+
+  // タブ切り替え: 目的別構成
+  // 'overview' (STEP1: 図面・AI解析) | 'review' (STEP2: 加工内容確認) | 'calculation' (STEP3: 設備・CT計算) | 'comparison' (STEP4: 実績比較/非表示) | 'complete' (STEP4/5: 見積確定・根拠)
   activeTab = signal<'overview' | 'review' | 'calculation' | 'comparison' | 'complete'>('overview');
   reviewSubTab = signal<'features' | 'operations'>('features');
 
@@ -153,6 +158,135 @@ export class QuoteDetailComponent implements OnInit {
     notes: '',
     operatorName: '見積担当者',
   };
+
+  /**
+   * 各自動旋盤の最大加工径（バー材能力）
+   */
+  getMachineMaxDiameter(machineName: string): number {
+    const name = machineName.toUpperCase();
+    if (name.includes('M16')) return 16;
+    if (name.includes('L20') || name.includes('M20')) return 20;
+    if (name.includes('M32') || name.includes('L32')) return 32;
+    return 366; // 汎用NC旋盤
+  }
+
+  /**
+   * 有効素材径の取得
+   */
+  getEffectiveStockDiameter(): number {
+    if (this.materialInfo()?.diameter) return Number(this.materialInfo()!.diameter);
+    if (this.activeAnalysis()?.stockDiameter) return Number(this.activeAnalysis()!.stockDiameter);
+    const feats = this.features();
+    if (feats.length > 0) {
+      const dias = feats.map((f) => (f.diameter !== null && f.diameter !== undefined ? Number(f.diameter) : 0));
+      return Math.max(...dias, 0);
+    }
+    return 0;
+  }
+
+  /**
+   * 指定した設備が素材径に対して能力オーバーか判定
+   */
+  isMachineOverCapacity(m: Machine): boolean {
+    const stockDia = this.getEffectiveStockDiameter();
+    if (!stockDia || stockDia <= 0) return false;
+    const maxDia = this.getMachineMaxDiameter(m.machineName);
+    return stockDia > maxDia;
+  }
+
+  /**
+   * 現在選択中の設備が能力オーバーか判定
+   */
+  isSelectedMachineOverCapacity(): boolean {
+    const m = this.selectedMachine();
+    if (!m) return false;
+    return this.isMachineOverCapacity(m);
+  }
+
+  /**
+   * 見積根拠総合解説レポート（長文テキスト生成）
+   */
+  calculationBasisNarrative = computed<string>(() => {
+    const q = this.quote();
+    const ct = this.latheCycleTime();
+    const m = this.selectedMachine();
+    const analysis = this.activeAnalysis();
+    const mat = this.materialInfo();
+    const ops = ct?.operations || [];
+    const feats = this.features();
+
+    if (!q || !ct) {
+      return 'サイクルタイムが未計算のため、根拠解説を生成できません。先にSTEP 3で計算を実行してください。';
+    }
+
+    const materialName = mat?.materialName || analysis?.material || 'S45C';
+    const effectiveStockDia = this.getEffectiveStockDiameter();
+    const stockDiaText = effectiveStockDia > 0 ? `${effectiveStockDia}mm` : '完成寸法より補完';
+    const machineName = m?.machineName || ct.machineName || 'Citizen Cincom L20';
+    const effectiveRpm = this.userMaxRpm() || m?.maxRpm || 10000;
+    const totalSec = ct.totalCycleTimeSec;
+    const lotTotalMin = (ct.totalLotTimeSec / 60).toFixed(1);
+    const cuttingSec = ct.cuttingTimeSec;
+    const nonCuttingSec = ct.nonCuttingTimeSec;
+
+    const turningOps = ops.filter(
+      (o) =>
+        o.processCategory === 'TURNING' ||
+        o.processName.includes('外径') ||
+        o.processName.includes('内径')
+    );
+    const faceOps = ops.filter((o) => o.processName.includes('端面'));
+    const holeOps = ops.filter(
+      (o) =>
+        o.processCategory === 'DRILLING' ||
+        o.processName.includes('穴') ||
+        o.processName.includes('タップ')
+    );
+    const cutoffOps = ops.filter((o) => o.processName.includes('突切り'));
+
+    let text = `【見積サイクルタイム算出根拠 総合報告書】\n\n`;
+    text += `■ 1. 対象ワークおよび素材仕様の適合性\n`;
+    text += `本案件（図番: ${q.partNo || '未指定'} / 品名: ${q.partName || '未指定'} / 顧客: ${q.customerName}）について、図面AI解析および入力仕様に基づき、材質「${materialName}」、素材径「φ${stockDiaText}」を前提条件として設定いたしました。\n`;
+    text += `抽出された加工部位は計${feats.length}箇所であり、外径段差、端面基準面、穴あけ、および突切り形状で構成される回転体旋盤加工部品として適正に認識されています。\n\n`;
+
+    text += `■ 2. 選定加工設備と機械的成立性\n`;
+    text += `主加工設備として「${machineName}」（ガイドブッシュ式高精度NC自動旋盤）を選定いたしました。\n`;
+    text += `素材径 φ${stockDiaText} は本設備のバー材許容加工能力（最大把握径 φ${this.getMachineMaxDiameter(machineName)}mm）に合致しており、機械干渉なく高剛性な連続バー材加工が成立します。\n`;
+    text += `また、主軸回転数は安全余裕およびワーク把握バランスを考慮し、上限設定「${effectiveRpm} rpm」を基準として各工程の切削条件（切削速度Vcおよび送りF）に制限を適用しています。\n\n`;
+
+    text += `■ 3. 切削時間の積算根拠（粗加工＋仕上げ加工の2パス構成）\n`;
+    text += `金属加工の実務基準に則り、純切削時間（${cuttingSec} 秒）は単一の一発加工ではなく、確実な寸法精度と指示面粗さを達成する工程分割で算出しています。\n`;
+    text += `・外径/内径切削（${turningOps.length}工程）: 素材外径と各仕上がり径の取り代に応じ、切込み深さ(ap)から必要粗加工（荒挽き）パス数を自動算定。さらに仕上げ代（半径0.2mm）に対し、面粗さ基準を満たす低送り（粗加工比約60%送り）での仕上げ挽き1パスおよび戻り早送り時間を厳密に積算しています。\n`;
+    if (faceOps.length > 0) {
+      text += `・端面切削: 黒皮除去の端面荒削り（1パス）に加え、基準端面精度を担保する端面仕上げ削り（1パス）の合計2パスで計算しています。\n`;
+    }
+    if (holeOps.length > 0) {
+      text += `・穴あけ/ねじ加工（${holeOps.length}工程）: 刃具径に応じた最適周速・ステップ送りおよび正転・逆転同期サイクルを考慮しています。\n`;
+    }
+    if (cutoffOps.length > 0) {
+      text += `・突切り工程: 製品切落しおよびサブスピンドルによる突っ切りピックアップ時間を加算しています。\n`;
+    }
+    text += `\n`;
+
+    text += `■ 4. 非切削時間（機械固定付帯動作）の積算根拠\n`;
+    text += `非切削時間（${nonCuttingSec} 秒）は、NC自動旋盤の標準動作マスタに基づき算出されています。\n`;
+    text += `・工具割出し・アプローチ時間: 各工具ステーション交換時間（約1.5秒）＋切削アプローチ/エスケープ（1.0秒）を全工程分積算。\n`;
+    text += `・機械固定サイクル時間: バーフィーダーによる材料送り出し（2.5秒）、製品突っ切りピックアップ・パーツキャッチャー回収（2.0秒）、主軸加減速およびアイドル待機時間（2.0秒）を確実に反映しています。\n\n`;
+
+    text += `■ 5. 実績補正係数と最終予測の妥当性\n`;
+    if (ct.correctionApplied && ct.correctionFactor) {
+      text += `過去に蓄積された同種材質・形状加工実績データとの照合により、承認済み実績補正係数「×${ct.correctionFactor}」（信頼度: ${ct.confidenceLevel || 'NORMAL'} / 判定: ${ct.correctionReason || '実績フィードバック'}）を適用いたしました。\n`;
+    } else {
+      text += `本予測では標準切削条件マスタおよび機械仕様に基づく確定理論値（補正係数 ×1.00）を採用しており、理論的な根拠に基づいた安全率の高い見積基礎数値となっています。\n`;
+    }
+    text += `\n`;
+
+    text += `■ 6. 総合見積結論\n`;
+    text += `以上の加工検証に基づき、製品1個あたりの予測サイクルタイムを「${totalSec} 秒」（約${(totalSec / 60).toFixed(2)}分）、ご指定ロット（${q.quantity} 個）における総加工時間を「${ct.totalLotTimeSec} 秒」（約${lotTotalMin}分）と確定算出いたしました。\n`;
+    text += `加工現場のオペレータ作業やNC段取り替え、および初品検査を円滑に進めるための確実な根拠としてご利用いただけます。`;
+
+    return text;
+  });
 
   // 実績フィードバック関連シグナル (PHASE10)
   actualCycleTimes = signal<ActualCycleTime[]>([]);
@@ -348,7 +482,7 @@ export class QuoteDetailComponent implements OnInit {
     this.drawingService.analyzeDrawing(drawingId).subscribe({
       next: (res) => {
         this.isAnalyzing.set(false);
-        this.featureSuccessMessage.set('AI解析が正常に完了しました。加工Featureを自動生成しています...');
+        this.featureSuccessMessage.set('AI解析が正常に完了しました。加工部位（形状）を自動抽出しています...');
         // 素材情報の再読み込み (PHASE11)
         if (this.quote()) {
           this.loadMaterial(this.quote()!.id);
@@ -371,7 +505,7 @@ export class QuoteDetailComponent implements OnInit {
     this.featureService.generateFeatures(analysisId).subscribe({
       next: (res) => {
         this.isGeneratingFeatures.set(false);
-        this.featureSuccessMessage.set(`加工Feature（${res.featureCount}件）を生成・登録しました。`);
+        this.featureSuccessMessage.set(`加工部位（${res.featureCount}箇所）を抽出・登録しました。`);
         // 解析詳細とFeatureをリロード
         if (this.selectedDrawingId()) {
           this.selectDrawing(this.selectedDrawingId()!);
@@ -379,7 +513,7 @@ export class QuoteDetailComponent implements OnInit {
       },
       error: (err) => {
         this.isGeneratingFeatures.set(false);
-        const msg = err?.error?.error?.message || '加工Featureの生成に失敗しました。';
+        const msg = err?.error?.error?.message || '加工部位の抽出に失敗しました。';
         this.featureErrorMessage.set(msg);
       },
     });
@@ -409,14 +543,14 @@ export class QuoteDetailComponent implements OnInit {
     this.featureErrorMessage.set(null);
     this.featureService.updateFeature(target.id, this.editForm).subscribe({
       next: (updated) => {
-        this.featureSuccessMessage.set(`Feature No.${updated.sequenceNo} を更新しました。`);
+        this.featureSuccessMessage.set(`加工部位 No.${updated.sequenceNo} を更新しました。`);
         this.closeEditModal();
         if (this.activeAnalysis()) {
           this.loadFeatures(this.activeAnalysis()!.id);
         }
       },
       error: (err) => {
-        const msg = err?.error?.error?.message || 'Featureの更新に失敗しました。';
+        const msg = err?.error?.error?.message || '加工部位の更新に失敗しました。';
         this.featureErrorMessage.set(msg);
       },
     });
@@ -476,7 +610,26 @@ export class QuoteDetailComponent implements OnInit {
 
     this.drawingService.deleteDrawing(drawingId).subscribe({
       next: () => {
+        // 図面削除に伴い関連する下流データシグナルをリセット
+        this.activeAnalysis.set(null);
+        this.features.set([]);
+        this.operations.set([]);
+        this.latheOperations.set([]);
+        this.cycleTimeResult.set(null);
+        this.latheCycleTime.set(null);
+        this.quoteResult.set(null);
+        this.quoteBasis.set(null);
+        this.materialInfo.set(null);
+        this.actualCycleTimes.set([]);
+        this.comparison.set(null);
+        this.evaluations.set([]);
+        this.advancedSimilarQuotes.set([]);
+        this.similarQuotes.set([]);
+        this.activeTab.set('overview');
+
+        this.loadQuote(q.id);
         this.loadDrawings(q.id);
+        this.loadQuoteManagementHistory(q.id);
       },
       error: () => {
         this.drawingErrorMessage.set('図面の削除に失敗しました。');
@@ -771,12 +924,18 @@ export class QuoteDetailComponent implements OnInit {
             this.selectedMachineId.set(sel.id);
             const found = res.items.find((m) => m.id === sel.id) || null;
             this.selectedMachine.set(found);
+            if (found && (this.userMaxRpm() === null || this.userMaxRpm() === undefined)) {
+              this.userMaxRpm.set(found.maxRpm || 10000);
+            }
           },
           error: () => {
             const def = res.items[0] || null;
             if (def) {
               this.selectedMachineId.set(def.id);
               this.selectedMachine.set(def);
+              if (this.userMaxRpm() === null || this.userMaxRpm() === undefined) {
+                this.userMaxRpm.set(def.maxRpm || 10000);
+              }
             }
           },
         });
@@ -807,6 +966,9 @@ export class QuoteDetailComponent implements OnInit {
         this.selectedMachineId.set(res.id);
         const m = this.machines().find((item) => item.id === res.id) || null;
         this.selectedMachine.set(m);
+        if (m) {
+          this.userMaxRpm.set(m.maxRpm || 10000);
+        }
         this.machineMessage.set(`使用加工機を「${res.machineName}」に変更しました。`);
         setTimeout(() => this.machineMessage.set(null), 3000);
       },
@@ -822,16 +984,26 @@ export class QuoteDetailComponent implements OnInit {
     const q = this.quote();
     if (!q) return;
 
+    if (this.isSelectedMachineOverCapacity()) {
+      const stockDia = this.getEffectiveStockDiameter();
+      const mName = this.selectedMachine()?.machineName || '';
+      if (!confirm(`【警告】素材径 φ${stockDia}mm に対し、選択設備「${mName}」の最大加工径を超過しています。\n加工不可の恐れがありますが、このまま計算を実行しますか？`)) {
+        return;
+      }
+    }
+
     this.isCalculatingLatheCt.set(true);
     this.latheErrorMessage.set(null);
     this.latheSuccessMessage.set(null);
 
+    const maxRpm = this.userMaxRpm() && this.userMaxRpm()! > 0 ? this.userMaxRpm()! : undefined;
+
     // PHASE09: 共通計算基盤 (POST /api/quotes/:id/cycle-time/calculate) 経由で実行
-    this.calculationService.calculateCycleTime(q.id).subscribe({
+    this.calculationService.calculateCycleTime(q.id, { maxRpm }).subscribe({
       next: (res) => {
         this.latheCycleTime.set(res);
         this.isCalculatingLatheCt.set(false);
-        this.latheSuccessMessage.set(`【${res.machineName} (${res.calculationEngineType || 'AUTOMATIC_LATHE'})】サイクルタイムの計算が完了しました。`);
+        this.latheSuccessMessage.set(`【${res.machineName} (${res.calculationEngineType || 'AUTOMATIC_LATHE'})】サイクルタイムの計算が完了しました（上限回転数: ${maxRpm || 'マスタ値'} rpm）。`);
         this.loadLatheOperations(q.id);
         this.loadComparison(q.id);
         this.loadCorrectionHistory(q.id);

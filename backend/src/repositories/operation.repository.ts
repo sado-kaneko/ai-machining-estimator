@@ -50,7 +50,7 @@ export class OperationRepository {
           null, // standard_condition_id (PHASE07で設定)
           item.sequenceNo,
           item.operationType,
-          item.description, // mode カラムに説明を格納
+          item.description ? item.description.slice(0, 50) : 'STANDARD', // mode カラムに説明を格納 (最大50文字)
           item.machineType, // tool_category カラムに設備分類を格納
           item.workDiameter,
           item.cuttingLength,

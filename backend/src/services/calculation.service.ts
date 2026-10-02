@@ -83,7 +83,10 @@ export class CalculationService {
    * 案件のサイクルタイム計算 (POST /api/quotes/:id/cycle-time/calculate)
    * 設備とEngine判定に基づき各専用Engineを実行
    */
-  async calculateCycleTime(quoteId: number): Promise<LatheCycleTimeSummaryDto | CycleTimeResultDto> {
+  async calculateCycleTime(
+    quoteId: number,
+    options?: { maxRpm?: number }
+  ): Promise<LatheCycleTimeSummaryDto | CycleTimeResultDto> {
     // 1. 案件取得
     const quote = await quoteRepository.findById(quoteId);
     if (!quote) {
@@ -115,6 +118,14 @@ export class CalculationService {
     // 4. 計算Engine取得
     const engine = CalculationEngineFactory.getEngine(engineType);
 
+    // 主軸上限RPMの決定（ユーザー指定があれば優先、無ければ設備マスタ値）
+    const effectiveMaxRpm =
+      options?.maxRpm && options.maxRpm > 0
+        ? options.maxRpm
+        : machine
+        ? Number(machine.max_rpm)
+        : 10000;
+
     // 5. Engine実行
     const result = await engine.calculate({
       quoteId,
@@ -123,7 +134,7 @@ export class CalculationService {
       machineId: machine ? Number(machine.id) : 1,
       machineName: machine ? machine.machine_name : 'Cincom L20',
       machineType: machine ? machine.machine_type : 'NC_AUTOMATIC_LATHE',
-      maxRpm: machine ? Number(machine.max_rpm) : 10000,
+      maxRpm: effectiveMaxRpm,
     });
 
     // 6. cycle_time_results テーブルへ保存 (既存結果は上書き)

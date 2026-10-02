@@ -31,4 +31,11 @@ export class QuoteService {
   createQuote(data: CreateQuoteRequest): Observable<Quote> {
     return this.http.post<Quote>(this.baseUrl, data);
   }
+
+  /**
+   * 見積案件削除 (DELETE /api/quotes/:id)
+   */
+  deleteQuote(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
 }

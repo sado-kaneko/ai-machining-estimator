@@ -182,7 +182,10 @@ export class LatheService {
    * NC自動旋盤サイクルタイム計算
    * POST /api/quotes/:id/lathe-cycle-time/calculate
    */
-  async calculateLatheCycleTime(quoteId: number): Promise<LatheCycleTimeSummaryDto> {
+  async calculateLatheCycleTime(
+    quoteId: number,
+    options?: { maxRpm?: number }
+  ): Promise<LatheCycleTimeSummaryDto> {
     const quote = await quoteRepository.findById(quoteId);
     if (!quote) {
       throw new Error('QUOTE_NOT_FOUND');
@@ -204,12 +207,21 @@ export class LatheService {
       }
     }
 
-    // 2. 設備マスタ取得
+    // 2. 素材情報取得
+    const materialInfo = await materialRepository.findByQuoteId(quoteId);
+    const stockDiameter = materialInfo?.diameter ? Number(materialInfo.diameter) : null;
+
+    // 3. 設備マスタ取得
     const machine = await latheRepository.findMachineByType('NC_AUTOMATIC_LATHE');
-    const machineMaxRpm = machine ? Number(machine.max_rpm) : 10000;
+    const machineMaxRpm =
+      options?.maxRpm && options.maxRpm > 0
+        ? options.maxRpm
+        : machine
+        ? Number(machine.max_rpm)
+        : 10000;
     const machineName = machine ? machine.machine_name : 'Cincom L20';
 
-    // 3. 非切削時間マスタ取得
+    // 4. 非切削時間マスタ取得
     const machineTimes = await latheRepository.findMachineTimes('NC_AUTOMATIC_LATHE');
     const timeMap = new Map<string, number>();
     machineTimes.forEach(t => timeMap.set(t.parameter_name, Number(t.time_sec)));
@@ -241,24 +253,58 @@ export class LatheService {
       if (rpm < 100) rpm = 100;
       rpm = Math.round(rpm);
 
-      // 送り速度 F = N * f
+      // 送り速度 F = N * f (粗加工送り)
       let feedRate = rpm * feed;
       if (feedRate <= 0) feedRate = 50.0;
+
+      // 仕上げ送りの設定 (粗加工送りの約60%で面粗さ・精度を確保)
+      const finishFeed = feed * 0.6;
+      let finishFeedRate = rpm * finishFeed;
+      if (finishFeedRate <= 0) finishFeedRate = 30.0;
+
+      // 切込み深さ ap (マスタ設定値、無ければデフォルト1.5mm)
+      const ap = cond.ap && Number(cond.ap) > 0 ? Number(cond.ap) : 1.5;
 
       let cuttingTimeSec = 0;
       // 工程非切削時間（工具交換＋アプローチ）
       const opNonCuttingSec = toolChangeTime + 1.0;
 
       switch (op.calculation_type) {
-        case 'FEED_TURNING':
-          // 外径・内径: L / F * 60 * 繰返し
-          cuttingTimeSec = (length / feedRate) * 60 * repeats;
-          break;
+        case 'FEED_TURNING': {
+          // 外径・内径加工: 粗加工（荒挽き）＋仕上げ加工（仕上げ挽き）
+          let totalStockRadius = 0;
+          if (stockDiameter && stockDiameter > diameter) {
+            totalStockRadius = (stockDiameter - diameter) / 2;
+          } else {
+            totalStockRadius = Math.max(ap * 1.2, 1.0);
+          }
 
-        case 'FEED_FACE':
-          // 端面: (D / 2) / F * 60
-          cuttingTimeSec = ((diameter / 2) / feedRate) * 60;
+          // 仕上げ代 (半径 0.2mm)
+          const finishAllowance = 0.2;
+          const roughStockRadius = Math.max(0, totalStockRadius - finishAllowance);
+
+          // 粗加工パス数 (切り込み量 ap に応じて算出、最低1パス)
+          const roughPasses = Math.max(1, Math.ceil(roughStockRadius / ap));
+          const finishPasses = 1;
+
+          // 粗加工時間・仕上げ加工時間・戻り時間
+          const roughTime = (length / feedRate) * 60 * roughPasses;
+          const finishTime = (length / finishFeedRate) * 60 * finishPasses;
+          const retractTime = (roughPasses - 1) * 0.6;
+
+          cuttingTimeSec = (roughTime + finishTime + retractTime) * repeats;
           break;
+        }
+
+        case 'FEED_FACE': {
+          // 端面加工: 端面粗削り（1パス）＋端面仕上げ削り（1パス）
+          const faceDiam = (stockDiameter && stockDiameter > 0) ? stockDiameter : diameter;
+          const faceRadius = faceDiam / 2;
+          const roughFaceTime = (faceRadius / feedRate) * 60;
+          const finishFaceTime = (faceRadius / finishFeedRate) * 60;
+          cuttingTimeSec = roughFaceTime + finishFaceTime;
+          break;
+        }
 
         case 'FEED_DRILL':
         case 'FEED_REAMER':

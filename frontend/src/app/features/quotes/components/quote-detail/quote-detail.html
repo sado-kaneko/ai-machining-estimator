@@ -50,7 +50,7 @@
         <div class="step-label">加工内容確認</div>
         <div class="step-badge">
           @if (features().length > 0) {
-            <span class="badge badge-success">{{ features().length }} Feature</span>
+            <span class="badge badge-success">{{ features().length }} 部位</span>
           } @else {
             <span class="badge badge-secondary">未確認</span>
           }
@@ -75,23 +75,25 @@
         </div>
       </div>
 
-      <div class="step-connector">&gt;</div>
+      @if (showComparisonTab()) {
+        <div class="step-connector">&gt;</div>
 
-      <div
-        class="step-item"
-        [class.active]="activeTab() === 'comparison'"
-        (click)="activeTab.set('comparison')"
-      >
-        <div class="step-num">STEP 4</div>
-        <div class="step-label">実績比較</div>
-        <div class="step-badge">
-          @if (actualCycleTimes().length > 0) {
-            <span class="badge badge-success">{{ actualCycleTimes().length }}件蓄積</span>
-          } @else {
-            <span class="badge badge-secondary">未登録</span>
-          }
+        <div
+          class="step-item"
+          [class.active]="activeTab() === 'comparison'"
+          (click)="activeTab.set('comparison')"
+        >
+          <div class="step-num">STEP 4</div>
+          <div class="step-label">実績比較</div>
+          <div class="step-badge">
+            @if (actualCycleTimes().length > 0) {
+              <span class="badge badge-success">{{ actualCycleTimes().length }}件蓄積</span>
+            } @else {
+              <span class="badge badge-secondary">未登録</span>
+            }
+          </div>
         </div>
-      </div>
+      }
 
       <div class="step-connector">&gt;</div>
 
@@ -100,7 +102,7 @@
         [class.active]="activeTab() === 'complete'"
         (click)="activeTab.set('complete')"
       >
-        <div class="step-num">STEP 5</div>
+        <div class="step-num">STEP 4</div>
         <div class="step-label">見積確定・根拠</div>
         <div class="step-badge">
           @if (quoteResult()) {
@@ -170,7 +172,7 @@
         <div class="panel-header">
           <div>
             <h2>STEP 1: 図面管理 & AI図面解析</h2>
-            <p class="panel-subtext">PDF図面をアップロードし、OpenAI Vision解析により材質・主要寸法・加工Feature候補を抽出します。</p>
+            <p class="panel-subtext">PDF図面をアップロードし、OpenAI Vision解析により材質・主要寸法・加工部位（外径・端面・溝・穴等）を抽出します。</p>
           </div>
         </div>
 
@@ -248,37 +250,83 @@
           }
         </div>
 
+        <!-- AI解析実行中アニメーションローディング -->
+        @if (isAnalyzing()) {
+          <div class="ai-analyzing-card mt-4">
+            <div class="ai-scan-glow"></div>
+            <div class="ai-analyzing-inner">
+              <div class="ai-spinner-box">
+                <div class="ai-radar-spinner"></div>
+                <div class="ai-core-icon">📐</div>
+              </div>
+              <h3 class="ai-analyzing-title">AI図面解析を実行中...</h3>
+              <p class="ai-analyzing-sub">OpenAI Visionモデルが図面PDFをスキャンし、材質・完成寸法・幾何公差・加工部位を抽出しています</p>
+
+              <div class="ai-analyzing-steps">
+                <div class="analyzing-step-item active">
+                  <span class="step-dot pulse"></span>
+                  <span>図面ベクター・高精細画像展開中</span>
+                </div>
+                <div class="analyzing-step-item active">
+                  <span class="step-dot pulse"></span>
+                  <span>材質・主要寸法・幾何公差の抽出中</span>
+                </div>
+                <div class="analyzing-step-item active">
+                  <span class="step-dot pulse"></span>
+                  <span>旋盤加工部位（外径・内径・溝・ねじ・穴）の構造化中</span>
+                </div>
+              </div>
+
+              <div class="ai-analyzing-time-hint">
+                ※ 図面の複雑さにより10〜20秒程度かかります。このまま画面を閉じずにお待ちください。
+              </div>
+            </div>
+          </div>
+        }
+
         <!-- AI解析結果表示 -->
         <div class="mt-4">
-          <h3>AI解析結果サマリ</h3>
-          @if (isLoadingAnalysis()) {
+          @if (isAnalyzing()) {
+            <!-- 解析中は上部のプログレスカードを表示するため非表示 -->
+          } @else if (isLoadingAnalysis()) {
             <div class="loading">解析情報を読み込み中...</div>
           } @else if (activeAnalysis(); as analysis) {
-            <div class="analysis-summary-box">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <span class="label">材質名</span>
-                  <span class="value font-bold font-highlight">{{ analysis.material || '未特定' }}</span>
+            <div class="analysis-info-card">
+              <div class="analysis-card-header">
+                <div>
+                  <h4 class="analysis-title">AI図面解析結果サマリ</h4>
+                  <p class="analysis-subtext">OpenAI Visionにより図面から自動抽出された主要仕様および形状パラメータです。</p>
                 </div>
-                <div class="detail-item">
-                  <span class="label">部品形状分類</span>
-                  <span class="value font-bold">{{ analysis.partType || '-' }}</span>
+                <div class="analysis-header-badge">
+                  <span class="badge badge-success">{{ analysis.status }}</span>
                 </div>
-                <div class="detail-item">
-                  <span class="label">素材外径</span>
-                  <span class="value">{{ analysis.stockDiameter !== null ? (analysis.stockDiameter + ' mm') : '-' }}</span>
+              </div>
+              <div class="analysis-grid">
+                <div class="analysis-cell">
+                  <span class="cell-label">材質名</span>
+                  <span class="cell-value font-bold font-highlight">{{ analysis.material || '未特定' }}</span>
                 </div>
-                <div class="detail-item">
-                  <span class="label">完成全長</span>
-                  <span class="value">{{ analysis.overallLength !== null ? (analysis.overallLength + ' mm') : '-' }}</span>
+                <div class="analysis-cell">
+                  <span class="cell-label">部品形状分類</span>
+                  <span class="cell-value font-bold">
+                    {{ analysis.partType === 'ROTATIONAL' ? '回転体 (ROTATIONAL)' : (analysis.partType || '-') }}
+                  </span>
                 </div>
-                <div class="detail-item">
-                  <span class="label">解析日時</span>
-                  <span class="value text-muted">{{ analysis.createdAt }}</span>
+                <div class="analysis-cell">
+                  <span class="cell-label">素材外径</span>
+                  <span class="cell-value font-bold">{{ analysis.stockDiameter !== null ? ('φ ' + analysis.stockDiameter + ' mm') : '-' }}</span>
                 </div>
-                <div class="detail-item">
-                  <span class="label">解析ステータス</span>
-                  <span class="value">
+                <div class="analysis-cell">
+                  <span class="cell-label">完成全長</span>
+                  <span class="cell-value">{{ analysis.overallLength !== null ? (analysis.overallLength + ' mm') : '-' }}</span>
+                </div>
+                <div class="analysis-cell">
+                  <span class="cell-label">解析日時</span>
+                  <span class="cell-value text-muted">{{ analysis.createdAt | date: 'yyyy/MM/dd HH:mm' }}</span>
+                </div>
+                <div class="analysis-cell">
+                  <span class="cell-label">解析ステータス</span>
+                  <span class="cell-value">
                     <span class="badge badge-success">{{ analysis.status }}</span>
                   </span>
                 </div>
@@ -360,7 +408,7 @@
             </div>
 
             <div class="step-next-bar mt-3">
-              <span class="text-muted">AI解析および素材情報確認完了。抽出された加工内容（Feature）を確認します。</span>
+              <span class="text-muted">AI解析および素材情報確認完了。抽出された加工部位（加工形状）を確認します。</span>
               <button class="btn btn-primary" (click)="activeTab.set('review')">
                 次へ: 加工内容確認 (STEP 2) &rarr;
               </button>
@@ -382,7 +430,7 @@
         <div class="panel-header">
           <div>
             <h2>STEP 2: 加工内容確認 (技術者レビュー)</h2>
-            <p class="panel-subtext">AIが抽出した加工部位（Feature）を確認・修正し、切削見積用の加工工程候補を整理します。</p>
+            <p class="panel-subtext">AIが図面から抽出した加工部位（外径・内径・溝・ねじ・穴等）を確認・修正し、切削見積用の加工工程候補を整理します。</p>
           </div>
           <div class="sub-tab-controls">
             <button
@@ -390,7 +438,7 @@
               [class.active]="reviewSubTab() === 'features'"
               (click)="reviewSubTab.set('features')"
             >
-              加工Feature一覧 ({{ features().length }})
+              加工部位一覧 ({{ features().length }})
             </button>
             <button
               class="sub-tab-btn"
@@ -415,33 +463,33 @@
           <div class="alert alert-error">{{ operationErrorMessage() }}</div>
         }
 
-        <!-- 1. Feature一覧エリア -->
+        <!-- 1. 加工部位一覧エリア -->
         @if (reviewSubTab() === 'features') {
           <div class="features-box">
             <div class="section-header-flex">
-              <h3>加工Feature一覧 ({{ features().length }}件)</h3>
+              <h3>加工部位一覧 ({{ features().length }}箇所)</h3>
               @if (activeAnalysis(); as analysis) {
                 <button
                   class="btn btn-secondary btn-sm"
                   (click)="generateFeatures(analysis.id)"
                   [disabled]="isGeneratingFeatures()"
                 >
-                  {{ isGeneratingFeatures() ? '生成中...' : 'Feature再生成' }}
+                  {{ isGeneratingFeatures() ? '抽出中...' : '加工部位を再抽出' }}
                 </button>
               }
             </div>
 
             @if (isLoadingFeatures()) {
-              <div class="loading">Feature一覧を取得中...</div>
+              <div class="loading">加工部位一覧を取得中...</div>
             } @else if (features().length === 0) {
-              <p class="no-drawings">登録されている加工Featureはありません。「Feature再生成」ボタンから抽出を実行してください。</p>
+              <p class="no-drawings">登録されている加工部位はありません。「加工部位を再抽出」ボタンから抽出を実行してください。</p>
             } @else {
               <div class="drawings-table-wrapper">
                 <table class="data-table feature-table">
                   <thead>
                     <tr>
                       <th style="width: 50px;">No</th>
-                      <th style="width: 90px;">種類</th>
+                      <th style="width: 110px;">部位・形状</th>
                       <th>説明 / 根拠</th>
                       <th style="width: 80px;" class="text-right">径 (mm)</th>
                       <th style="width: 80px;" class="text-right">長さ (mm)</th>
@@ -486,7 +534,7 @@
             <div class="section-header-flex">
               <div>
                 <h3>加工工程候補一覧 ({{ operations().length }}件)</h3>
-                <p class="section-subtext">Featureをもとに工程設計ルールに基づき自動展開された工程候補です。</p>
+                <p class="section-subtext">抽出された加工部位をもとに工程設計ルールに基づき自動展開された工程候補です。</p>
               </div>
               <button
                 class="btn btn-primary btn-sm"
@@ -552,7 +600,7 @@
         }
 
         <div class="step-next-bar mt-4">
-          <span class="text-muted">加工Featureと工程候補の確認が完了したら、計算設備を選択してサイクルタイムを算出します。</span>
+          <span class="text-muted">加工部位と工程候補の確認が完了したら、計算設備を選択してサイクルタイムを算出します。</span>
           <button class="btn btn-primary" (click)="activeTab.set('calculation')">
             次へ: 設備選択・CT計算 (STEP 3) &rarr;
           </button>
@@ -579,23 +627,40 @@
           <div class="alert alert-error">{{ latheErrorMessage() }}</div>
         }
 
-        <!-- 1. 設備選択 & アクションカード -->
-        <div class="machine-select-card mb-4">
-          <div class="machine-select-header">
-            <div>
-              <h3>使用加工設備の選定</h3>
-              <p class="section-subtext">設備ごとの主軸上限・ガイドブッシュ仕様・計算エンジンに紐付いてサイクルタイムが算出されます。</p>
+        <!-- 統合: NC自動旋盤 計算条件 & 加工設備設定 -->
+        <div class="calculation-condition-card integrated-card mb-4">
+          <div class="condition-card-header">
+            <div class="header-left">
+              <div class="title-row">
+                <span class="card-icon">⚙️</span>
+                <h4>NC自動旋盤 計算条件・加工設備設定</h4>
+                <span class="badge badge-engine">
+                  Engine: {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}
+                </span>
+              </div>
+              <p class="section-subtext">使用設備・切削条件マスタと連動し、確定的かつ高精度なサイクルタイムを算出します。</p>
             </div>
             <div class="header-actions">
+              @if (latheOperations().length === 0) {
+                <button
+                  class="btn btn-secondary btn-sm"
+                  (click)="handleGenerateLatheOperations()"
+                  [disabled]="isGeneratingLatheOps()"
+                >
+                  {{ isGeneratingLatheOps() ? '工程生成中...' : '⚙️ 自動旋盤工程を生成' }}
+                </button>
+              } @else {
+                <button
+                  class="btn btn-outline-secondary btn-sm"
+                  (click)="handleRegenerateLatheOperations()"
+                  [disabled]="isGeneratingLatheOps()"
+                  title="最新のマスタ条件に基づき工程を再生成します"
+                >
+                  {{ isGeneratingLatheOps() ? '再構築中...' : '🔄 工程を再生成' }}
+                </button>
+              }
               <button
-                class="btn btn-secondary btn-sm"
-                (click)="handleGenerateLatheOperations()"
-                [disabled]="isGeneratingLatheOps()"
-              >
-                {{ isGeneratingLatheOps() ? '工程生成中...' : '自動旋盤工程を生成' }}
-              </button>
-              <button
-                class="btn btn-primary"
+                class="btn btn-primary btn-calculate-main"
                 (click)="handleCalculateLatheCycleTime()"
                 [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
               >
@@ -604,8 +669,9 @@
             </div>
           </div>
 
-          <div class="detail-grid mt-3">
-            <div class="detail-item">
+          <div class="detail-grid integrated-grid mt-3">
+            <!-- 設備選択 & 主軸回転数設定 -->
+            <div class="detail-item item-machine">
               <span class="label">使用加工機</span>
               <div class="machine-picker-row">
                 <select
@@ -615,8 +681,15 @@
                   [disabled]="isChangingMachine()"
                 >
                   @for (m of machines(); track m.id) {
-                    <option [value]="m.id">
-                      {{ m.machineName }} ({{ m.maker || '-' }})
+                    <option
+                      [value]="m.id"
+                      [disabled]="isMachineOverCapacity(m)"
+                    >
+                      @if (isMachineOverCapacity(m)) {
+                        ⛔ {{ m.machineName }} (最大φ{{ getMachineMaxDiameter(m.machineName) }}mm - 素材φ{{ getEffectiveStockDiameter() }}mm超過)
+                      } @else {
+                        {{ m.machineName }} (最大加工径 φ{{ getMachineMaxDiameter(m.machineName) }}mm)
+                      }
                     </option>
                   }
                 </select>
@@ -624,50 +697,38 @@
                   <span class="updating-text">変更反映中...</span>
                 }
               </div>
+
+              <!-- 主軸上限回転数の人による手動設定（ユーザー介入） -->
+              <div class="machine-specs-text">
+                <span class="label-rpm">主軸上限設定:</span>
+                <div class="rpm-input-wrapper">
+                  <input
+                    type="number"
+                    class="form-control form-control-sm rpm-input"
+                    [ngModel]="userMaxRpm()"
+                    (ngModelChange)="userMaxRpm.set($event)"
+                    min="100"
+                    max="15000"
+                    step="100"
+                    title="人が安全余裕や加工条件を考慮して上限回転数を手動調整できます"
+                  />
+                  <span class="unit-text">rpm</span>
+                </div>
+                <span class="rpm-tag">手動変更可</span>
+              </div>
             </div>
 
+            <!-- 材料 -->
             <div class="detail-item">
-              <span class="label">計算Engine</span>
-              <span class="value">
-                <span class="badge badge-engine">
-                  {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}
-                </span>
+              <span class="label">材料 (材質)</span>
+              <span class="value font-bold font-highlight">
+                {{ materialInfo()?.materialName || activeAnalysis()?.material || 'S45C' }}
               </span>
             </div>
 
+            <!-- 素材寸法 -->
             <div class="detail-item">
-              <span class="label">設備仕様</span>
-              @if (selectedMachine(); as m) {
-                <span class="value text-muted">
-                  型式: {{ m.model || m.machineName }} / 最大回転数: {{ m.maxRpm }} rpm
-                </span>
-              } @else {
-                <span class="value text-muted">-</span>
-              }
-            </div>
-          </div>
-          @if (machineMessage()) {
-            <div class="alert alert-success mt-2">{{ machineMessage() }}</div>
-          }
-        </div>
-
-        <!-- PHASE12: NC自動旋盤計算条件サマリ表示 -->
-        <div class="calculation-condition-card mb-4">
-          <div class="condition-card-header">
-            <h4>NC自動旋盤 計算条件</h4>
-            <span class="badge badge-highlight">Calculation Engine: {{ selectedMachine()?.calculationEngineType || 'AUTOMATIC_LATHE' }}</span>
-          </div>
-          <div class="detail-grid mt-2">
-            <div class="detail-item">
-              <span class="label">設備</span>
-              <span class="value font-bold font-highlight">{{ selectedMachine()?.machineName || 'Cincom L20' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="label">材料</span>
-              <span class="value font-bold">{{ materialInfo()?.materialName || activeAnalysis()?.material || 'S45C' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="label">素材</span>
+              <span class="label">素材寸法</span>
               <span class="value">
                 @if (materialInfo(); as mat) {
                   {{ mat.diameter ? ('φ ' + mat.diameter + ' mm') : 'φ -' }}
@@ -679,27 +740,39 @@
                 }
               </span>
             </div>
+
+            <!-- 工程数・状態 -->
             <div class="detail-item">
-              <span class="label">工程数</span>
-              <span class="value font-bold">{{ latheOperations().length }} 工程</span>
+              <span class="label">加工工程数</span>
+              <span class="value">
+                @if (latheOperations().length > 0) {
+                  <span class="font-bold text-success">{{ latheOperations().length }} 工程</span>
+                } @else {
+                  <span class="badge badge-warning">未生成</span>
+                }
+              </span>
             </div>
           </div>
-          <div class="condition-card-actions mt-3">
-            <button
-              class="btn btn-outline-primary btn-sm"
-              (click)="handleRegenerateLatheOperations()"
-              [disabled]="isGeneratingLatheOps()"
-            >
-              {{ isGeneratingLatheOps() ? '再構築中...' : '🔄 最新マスタ基準で工程を再生成' }}
-            </button>
-            <button
-              class="btn btn-primary btn-sm"
-              (click)="handleCalculateLatheCycleTime()"
-              [disabled]="isCalculatingLatheCt() || latheOperations().length === 0"
-            >
-              {{ isCalculatingLatheCt() ? '計算実行中...' : '⚡ サイクルタイム計算を実行' }}
-            </button>
-          </div>
+
+          @if (machineMessage()) {
+            <div class="alert alert-success mt-2">{{ machineMessage() }}</div>
+          }
+
+          @if (isSelectedMachineOverCapacity()) {
+            <div class="alert alert-error mt-2">
+              ⚠️ <strong>設備能力オーバー警告:</strong> 選択中の「{{ selectedMachine()?.machineName }}」（最大把握能力: φ{{ getMachineMaxDiameter(selectedMachine()!.machineName) }}mm）は、素材外径（φ{{ getEffectiveStockDiameter() }}mm）を超過しているためバー材供給・加工ができません。適合設備（Cincom M32等）に変更してください。
+            </div>
+          }
+
+          <!-- 工程未生成時のガイダンスバナー -->
+          @if (latheOperations().length === 0) {
+            <div class="guidance-banner mt-3">
+              <span class="guidance-icon">💡</span>
+              <span class="guidance-text">
+                まずは右上の<strong>「自動旋盤工程を生成」</strong>をクリックして図面解析結果から加工工程を自動抽出してください。
+              </span>
+            </div>
+          }
         </div>
 
         <!-- 2. 最重要結果表示エリア (推定サイクルタイム強調カード) -->
@@ -846,45 +919,78 @@
           <!-- 3. 工程別詳細表示テーブル -->
           <div class="operations-breakdown-section mt-4">
             <div class="section-header-flex">
-              <div>
-                <h3>工程別加工時間内訳 ({{ ct.operations.length }}工程)</h3>
+              <div class="header-title-box">
+                <div class="title-with-count">
+                  <h3>工程別加工時間内訳</h3>
+                  <span class="count-badge">{{ ct.operations.length }} 工程</span>
+                </div>
                 <p class="section-subtext">Excel見積ノウハウを完全再現した各工具・工程別の切削速度・送り・加工時間明細です。</p>
               </div>
             </div>
 
-            <div class="drawings-table-wrapper">
+            <div class="operations-table-container mt-2">
               <table class="data-table lathe-table">
                 <thead>
                   <tr>
-                    <th style="width: 45px;">No</th>
-                    <th>工程名</th>
-                    <th style="width: 75px;" class="text-right">加工径<br><small>(φ mm)</small></th>
-                    <th style="width: 75px;" class="text-right">加工長<br><small>(L mm)</small></th>
-                    <th style="width: 75px;" class="text-right">切削速度<br><small>(Vc m/min)</small></th>
-                    <th style="width: 80px;" class="text-right">送り量<br><small>(F mm/rev)</small></th>
-                    <th style="width: 75px;" class="text-right">回転数<br><small>(N rpm)</small></th>
-                    <th style="width: 85px;" class="text-right">切削時間</th>
-                    <th style="width: 85px;" class="text-right">非切削時間</th>
-                    <th style="width: 90px;" class="text-right">工程合計</th>
-                    <th style="width: 75px;">状態</th>
+                    <th class="col-no text-center">
+                      <span class="col-label">No</span>
+                    </th>
+                    <th class="col-process text-left">
+                      <span class="col-label">工程名</span>
+                    </th>
+                    <th class="col-num text-right">
+                      <span class="col-label">加工径</span>
+                      <span class="col-unit">(φ mm)</span>
+                    </th>
+                    <th class="col-num text-right">
+                      <span class="col-label">加工長</span>
+                      <span class="col-unit">(L mm)</span>
+                    </th>
+                    <th class="col-num text-right">
+                      <span class="col-label">切削速度</span>
+                      <span class="col-unit">(Vc m/min)</span>
+                    </th>
+                    <th class="col-num text-right">
+                      <span class="col-label">送り量</span>
+                      <span class="col-unit">(F mm/rev)</span>
+                    </th>
+                    <th class="col-num text-right">
+                      <span class="col-label">回転数</span>
+                      <span class="col-unit">(N rpm)</span>
+                    </th>
+                    <th class="col-time text-right">
+                      <span class="col-label">切削時間</span>
+                      <span class="col-unit">(秒)</span>
+                    </th>
+                    <th class="col-time text-right">
+                      <span class="col-label">非切削時間</span>
+                      <span class="col-unit">(秒)</span>
+                    </th>
+                    <th class="col-time text-right">
+                      <span class="col-label">工程合計</span>
+                      <span class="col-unit">(秒)</span>
+                    </th>
+                    <th class="col-status text-center">
+                      <span class="col-label">状態</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (op of ct.operations; track op.id) {
                     <tr>
-                      <td class="text-center font-bold">{{ op.sequenceNo }}</td>
-                      <td>
-                        <span class="badge badge-type">{{ op.processName }}</span>
+                      <td class="text-center font-bold col-no-cell">{{ op.sequenceNo }}</td>
+                      <td class="col-process-cell">
+                        <span class="badge badge-type op-badge">{{ op.processName }}</span>
                       </td>
-                      <td class="text-right">{{ op.diameter }}</td>
-                      <td class="text-right">{{ op.machiningLength }}</td>
-                      <td class="text-right">{{ op.vc > 0 ? op.vc : '-' }}</td>
-                      <td class="text-right">{{ op.feed > 0 ? op.feed : '-' }}</td>
-                      <td class="text-right">{{ op.rpm > 0 ? op.rpm : '-' }}</td>
-                      <td class="text-right font-highlight">{{ op.cuttingTimeSec > 0 ? (op.cuttingTimeSec + ' 秒') : '-' }}</td>
-                      <td class="text-right text-muted">{{ op.nonCuttingTimeSec > 0 ? (op.nonCuttingTimeSec + ' 秒') : '-' }}</td>
-                      <td class="text-right font-bold">{{ op.totalTimeSec > 0 ? (op.totalTimeSec + ' 秒') : '-' }}</td>
-                      <td>
+                      <td class="text-right font-num">{{ op.diameter }}</td>
+                      <td class="text-right font-num">{{ op.machiningLength }}</td>
+                      <td class="text-right font-num">{{ op.vc > 0 ? op.vc : '-' }}</td>
+                      <td class="text-right font-num">{{ op.feed > 0 ? op.feed : '-' }}</td>
+                      <td class="text-right font-num">{{ op.rpm > 0 ? (op.rpm | number) : '-' }}</td>
+                      <td class="text-right font-num font-highlight">{{ op.cuttingTimeSec > 0 ? (op.cuttingTimeSec + ' 秒') : '-' }}</td>
+                      <td class="text-right font-num text-muted">{{ op.nonCuttingTimeSec > 0 ? (op.nonCuttingTimeSec + ' 秒') : '-' }}</td>
+                      <td class="text-right font-num font-bold op-total-cell">{{ op.totalTimeSec > 0 ? (op.totalTimeSec + ' 秒') : '-' }}</td>
+                      <td class="text-center col-status-cell">
                         @if (op.status === 'CONFIRMED') {
                           <span class="badge badge-confirmed">確認済</span>
                         } @else {
@@ -899,23 +1005,31 @@
           </div>
 
           <div class="step-next-bar mt-4">
-            <span class="text-muted">サイクルタイム算出完了。加工完了後は現場の実績時間を登録して差異比較を行います。</span>
-            <button class="btn btn-primary" (click)="activeTab.set('comparison')">
-              次へ: 実績比較 (STEP 4) &rarr;
+            <span class="text-muted">サイクルタイム算出完了。算出根拠の総合解説確認および見積確定へ進みます。</span>
+            <button class="btn btn-primary" (click)="activeTab.set('complete')">
+              次へ: 見積確定・根拠 (STEP 4) &rarr;
             </button>
           </div>
         } @else {
-          <div class="no-drawings mt-3">
-            <p>サイクルタイムがまだ計算されていません。上の「自動旋盤工程を生成」を実行した後、「⚡ サイクルタイム計算を実行」ボタンをクリックしてください。</p>
+          <div class="empty-state-card mt-3">
+            <div class="empty-state-icon">⏱️</div>
+            <div class="empty-state-title">サイクルタイム未計算</div>
+            <p class="empty-state-sub">
+              上の「NC自動旋盤 計算条件・加工設備設定」から
+              @if (latheOperations().length === 0) {
+                <strong>「⚙️ 自動旋盤工程を生成」</strong>を実行後、
+              }
+              <strong>「⚡ サイクルタイム計算を実行」</strong>をクリックしてください。
+            </p>
           </div>
         }
       </div>
     }
 
     <!-- ============================================================== -->
-    <!-- STEP 4: 実績比較 (PHASE10)                                      -->
+    <!-- STEP 4: 実績比較 (非表示として保持)                            -->
     <!-- ============================================================== -->
-    @if (activeTab() === 'comparison') {
+    @if (showComparisonTab() && activeTab() === 'comparison') {
       <div class="content-panel">
         <div class="panel-header">
           <div>
@@ -1311,9 +1425,6 @@
                   <h4>設備・材料別 補正係数学習データ ({{ correctionFactors().length }}件)</h4>
                   <small class="text-muted">※次フェーズ以降のEngine自動補正に活用されます（現フェーズは蓄積のみ）</small>
                 </div>
-                <a routerLink="/analysis" class="btn btn-outline-primary btn-sm">
-                  📊 実績統計分析画面へ &rarr;
-                </a>
               </div>
               <div class="detail-grid">
                 @for (cf of correctionFactors(); track cf.id) {
@@ -1346,8 +1457,8 @@
       <div class="content-panel">
         <div class="panel-header">
           <div>
-            <h2>STEP 5: 見積確定 &amp; 見積根拠資料出力・履歴管理</h2>
-            <p class="panel-subtext">AI予測・実績補正サイクルタイムに基づいて見積を確定し、社内説明用の見積根拠資料出力および案件履歴を管理します。</p>
+            <h2>STEP 4: 見積確定 &amp; 見積根拠総合解説・出力</h2>
+            <p class="panel-subtext">AI予測・実績補正サイクルタイムに基づいて見積を確定し、社内説明・顧客説明用の完全な見積根拠解説レポートを出力・管理します。</p>
           </div>
           <div class="header-actions">
             <button class="btn btn-outline-primary" (click)="handlePrintPdf()">
@@ -1369,6 +1480,40 @@
         @if (completeErrorMessage()) {
           <div class="alert alert-error">{{ completeErrorMessage() }}</div>
         }
+
+        <!-- フィードバック・やり直しナビゲーションバー -->
+        <div class="feedback-nav-bar mb-4">
+          <div class="feedback-nav-info">
+            <span class="feedback-icon">💡</span>
+            <div>
+              <strong>加工内容やサイクルタイムの再調整・フィードバック</strong>
+              <p class="feedback-subtext">根拠解説や算出結果を確認した上で、加工形状の変更や主軸上限RPM・設備の変更が必要な場合は、各ステップに戻って再実行できます。</p>
+            </div>
+          </div>
+          <div class="feedback-nav-actions">
+            <button class="btn btn-outline-secondary btn-sm" (click)="activeTab.set('review')">
+              ✏️ 加工内容確認 (STEP 2) へ戻る
+            </button>
+            <button class="btn btn-outline-primary btn-sm" (click)="activeTab.set('calculation')">
+              ⚙️ 設備・CT計算 (STEP 3) へ戻る
+            </button>
+          </div>
+        </div>
+
+        <!-- AI見積サイクルタイム算出根拠 総合解説レポート（長文） -->
+        <div class="narrative-report-card mb-4">
+          <div class="narrative-header">
+            <div class="title-with-badge">
+              <span class="narrative-icon">🤖</span>
+              <h3>AI見積サイクルタイム算出根拠 総合解説レポート</h3>
+              <span class="badge badge-confirmed">根拠解説生成済</span>
+            </div>
+            <p class="section-subtext">図面仕様・選定設備・切削条件（粗・仕上げパス）・非切削時間・実績補正に基づき、論理的根拠をわかりやすくまとめた技術解説書です。</p>
+          </div>
+          <div class="narrative-content-box mt-3">
+            <pre class="narrative-text">{{ calculationBasisNarrative() }}</pre>
+          </div>
+        </div>
 
         <!-- 1. 見積確定サマリ & ステータスカード -->
         <div class="complete-status-card mb-4" [class.is-completed]="q.status === 'COMPLETED'">
@@ -1549,7 +1694,7 @@
             <div>
               <h3>🔍 過去類似加工実績 (参考CT・再利用候補)</h3>
               <p class="section-subtext">
-                材料・設備・素材径・Feature構成・寸法に基づく高精度ルールベース類似判定 (100点満点) による類似部品です。
+                材料・設備・素材径・加工形状構成・寸法に基づく高精度ルールベース類似判定 (100点満点) による類似部品です。
               </p>
             </div>
             @if (isLoadingSimilar()) {
@@ -1567,7 +1712,7 @@
                     <th>品名</th>
                     <th>材料 / 素材径</th>
                     <th>使用設備</th>
-                    <th>Feature構成</th>
+                    <th>加工形状構成</th>
                     <th class="text-right">過去予測CT</th>
                     <th class="text-right">実加工CT</th>
                     <th class="text-right">予測誤差率</th>
@@ -1741,21 +1886,21 @@
       <div class="modal-backdrop">
         <div class="modal-content">
           <div class="modal-header">
-            <h3>加工Feature編集 (No.{{ target.sequenceNo }})</h3>
+            <h3>加工部位の編集 (No.{{ target.sequenceNo }})</h3>
             <button class="modal-close" (click)="closeEditModal()">&times;</button>
           </div>
           <div class="modal-body">
             <div class="form-group">
-              <label>Feature種類</label>
+              <label>加工部位・形状</label>
               <select [(ngModel)]="editForm.featureType" class="form-control">
-                <option value="OD">OD (外径加工)</option>
-                <option value="ID">ID (内径加工)</option>
-                <option value="DRILL">DRILL (ドリル穴あけ)</option>
-                <option value="BORE">BORE (ボーリング仕上げ)</option>
-                <option value="THREAD">THREAD (ねじ切り)</option>
-                <option value="GROOVE">GROOVE (溝入れ)</option>
-                <option value="CHAMFER">CHAMFER (面取り)</option>
-                <option value="UNKNOWN">UNKNOWN (不明・その他)</option>
+                <option value="OD">外径加工 (OD)</option>
+                <option value="ID">内径加工 (ID)</option>
+                <option value="DRILL">ドリル穴あけ (DRILL)</option>
+                <option value="BORE">ボーリング仕上げ (BORE)</option>
+                <option value="THREAD">ねじ切り (THREAD)</option>
+                <option value="GROOVE">溝入れ (GROOVE)</option>
+                <option value="CHAMFER">面取り (CHAMFER)</option>
+                <option value="UNKNOWN">その他・不明 (UNKNOWN)</option>
               </select>
             </div>
 

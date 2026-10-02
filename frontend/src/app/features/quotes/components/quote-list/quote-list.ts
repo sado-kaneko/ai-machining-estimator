@@ -63,11 +63,40 @@ export class QuoteListComponent implements OnInit {
     });
   }
 
+  isDeletingId = signal<number | null>(null);
+  successMessage = signal<string | null>(null);
+
   navigateToCreate(): void {
     this.router.navigate(['/quotes/new']);
   }
 
   navigateToDetail(id: number): void {
     this.router.navigate(['/quotes', id]);
+  }
+
+  deleteQuote(id: number, quoteLabel: string, event: MouseEvent): void {
+    event.stopPropagation();
+
+    if (!confirm(`見積案件「${quoteLabel}」を削除してもよろしいですか？\n※関連する図面・解析データ・計算結果もすべて削除されます。`)) {
+      return;
+    }
+
+    this.isDeletingId.set(id);
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
+
+    this.quoteService.deleteQuote(id).subscribe({
+      next: () => {
+        this.isDeletingId.set(null);
+        this.successMessage.set(`見積案件「${quoteLabel}」を削除しました。`);
+        setTimeout(() => this.successMessage.set(null), 4000);
+        this.loadQuotes();
+      },
+      error: (err) => {
+        this.isDeletingId.set(null);
+        const msg = err?.error?.error?.message || '見積案件の削除に失敗しました。';
+        this.errorMessage.set(msg);
+      },
+    });
   }
 }

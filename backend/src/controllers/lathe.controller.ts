@@ -98,7 +98,8 @@ export class LatheController {
         return;
       }
 
-      const result = await latheService.calculateLatheCycleTime(quoteId);
+      const maxRpm = req.body?.maxRpm ? Number(req.body.maxRpm) : undefined;
+      const result = await latheService.calculateLatheCycleTime(quoteId, { maxRpm });
       res.status(200).json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
