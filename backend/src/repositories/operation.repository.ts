@@ -23,6 +23,7 @@ export class OperationRepository {
           standard_condition_id,
           sequence_no,
           operation_type,
+          machining_side,
           mode,
           tool_category,
           work_diameter,
@@ -40,7 +41,7 @@ export class OperationRepository {
           total_time_sec,
           condition_source,
           is_manual_override
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       for (const item of items) {
@@ -50,6 +51,7 @@ export class OperationRepository {
           null, // standard_condition_id (PHASE07で設定)
           item.sequenceNo,
           item.operationType,
+          item.machiningSide || 'FRONT',
           item.description ? item.description.slice(0, 50) : 'STANDARD', // mode カラムに説明を格納 (最大50文字)
           item.machineType, // tool_category カラムに設備分類を格納
           item.workDiameter,
@@ -120,6 +122,10 @@ export class OperationRepository {
       fields.push('sequence_no = ?');
       values.push(data.sequenceNo);
     }
+    if (data.machiningSide !== undefined) {
+      fields.push('machining_side = ?');
+      values.push(data.machiningSide);
+    }
     if (data.description !== undefined) {
       fields.push('mode = ?');
       values.push(data.description);
@@ -145,6 +151,30 @@ export class OperationRepository {
     const [result] = await pool.query<ResultSetHeader>(sql, values);
 
     return result.affectedRows > 0;
+  }
+
+  /**
+   * 複数工程の順序(sequence_no)を一括更新する（トランザクション使用）
+   */
+  async updateSequences(updates: { id: number; sequenceNo: number }[]): Promise<void> {
+    if (updates.length === 0) return;
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      for (const item of updates) {
+        await connection.query(
+          `UPDATE operations SET sequence_no = ?, updated_at = NOW() WHERE id = ?`,
+          [item.sequenceNo, item.id]
+        );
+      }
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   /**

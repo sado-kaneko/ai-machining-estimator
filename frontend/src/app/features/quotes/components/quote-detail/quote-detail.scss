@@ -203,18 +203,143 @@
   }
 }
 
-.drawings-table-wrapper {
+.drawings-table-wrapper, .table-wrapper, .table-container {
   overflow-x: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  -webkit-overflow-scrolling: touch;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+    &:hover {
+      background: #94a3b8;
+    }
+  }
 }
 
 .data-table {
-  width: 100%; border-collapse: collapse; text-align: left;
-  th, td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
-  th { background: #f8fafc; font-weight: 600; color: #4a5568; }
-  tbody tr:hover { background: #f7fafc; }
-  tbody tr:last-child td { border-bottom: none; }
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 0.84rem;
+
+  th, td {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+
+  th {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    font-weight: 700;
+    color: #334155;
+    border-bottom: 2px solid #cbd5e1;
+    border-top: none;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    transition: background-color 0.15s ease;
+    border-bottom: 1px solid #e2e8f0;
+
+    &:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    &:hover {
+      background-color: #eff6ff;
+    }
+
+    &:last-child td {
+      border-bottom: none;
+    }
+
+    &.clickable-row {
+      cursor: pointer;
+      &:hover {
+        background: #ebf8ff;
+      }
+    }
+
+    &.row-selected {
+      background: #ebf8ff;
+      border-left: 3px solid #3182ce;
+      td {
+        font-weight: 600;
+      }
+    }
+  }
+
+  .font-num {
+    font-variant-numeric: tabular-nums;
+    font-family: inherit;
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .text-center {
+    text-align: center;
+  }
+
+  .text-left {
+    text-align: left;
+  }
+}
+
+.step-guide-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #3182ce;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+
+    .guide-icon {
+      font-size: 1.4rem;
+      line-height: 1.2;
+    }
+
+    .guide-body {
+      strong {
+        display: block;
+        font-size: 0.88rem;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+      }
+
+      p {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin: 0;
+        line-height: 1.45;
+      }
+    }
+  }
 }
 
 .table-actions { display: flex; align-items: center; gap: 0.4rem; }
@@ -286,16 +411,80 @@
   }
 }
 
-.features-box {
-  h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.75rem 0; color: #4a5568; }
+.features-box, .operations-box {
+  .section-header-flex {
+    margin-bottom: 0.75rem;
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    .section-subtext {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin: 0.25rem 0 0 0;
+    }
+  }
 }
 
-.feature-table {
+.feature-table, .operations-table {
+  width: 100%;
+  font-size: 0.84rem;
+  letter-spacing: -0.01em;
+
+  thead th {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+    padding: 0.65rem 0.85rem;
+    white-space: nowrap;
+    border-bottom: 2px solid #cbd5e1;
+  }
+
+  tbody td {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.84rem;
+    color: #1e293b;
+    vertical-align: middle;
+    line-height: 1.4;
+
+    &.font-num {
+      font-variant-numeric: tabular-nums;
+      font-family: inherit;
+      font-weight: 500;
+    }
+  }
+
   .text-center { text-align: center; }
   .text-right { text-align: right; }
+  .text-left { text-align: left; }
   .row-warning { background: #fffaf0; &:hover { background: #feebc8; } }
   .feature-desc { font-weight: 500; color: #2d3748; }
   .feature-source { font-size: 0.75rem; color: #718096; margin-top: 0.2rem; }
+
+  .badge {
+    font-size: 0.76rem;
+    padding: 0.22rem 0.6rem;
+    line-height: 1.2;
+    vertical-align: middle;
+    font-weight: 600;
+  }
+
+  .table-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+
+    .btn-sm {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.75rem;
+      line-height: 1.2;
+    }
+  }
 }
 
 /* モーダル */
@@ -306,7 +495,8 @@
 }
 
 .modal-content {
-  background: #fff; border-radius: 8px; width: 100%; max-width: 480px;
+  background: #fff; border-radius: 10px; width: 92%; max-width: 520px;
+  box-sizing: border-box;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); overflow: hidden;
 }
 
@@ -319,6 +509,7 @@
 
 .modal-body {
   padding: 1.25rem; display: flex; flex-direction: column; gap: 0.875rem;
+  box-sizing: border-box;
 }
 
 .modal-footer {
@@ -327,18 +518,48 @@
 }
 
 .form-group {
-  display: flex; flex-direction: column; gap: 0.25rem;
+  display: flex; flex-direction: column; gap: 0.25rem; min-width: 0;
   label { font-size: 0.8rem; font-weight: 500; color: #4a5568; }
 }
 
 .form-row {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+  width: 100%; box-sizing: border-box; min-width: 0;
+}
+
+.form-row-dimensions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-control {
-  padding: 0.4rem 0.6rem; border: 1px solid #cbd5e0; border-radius: 4px;
+  width: 100%; box-sizing: border-box; min-width: 0;
+  padding: 0.45rem 0.6rem; border: 1px solid #cbd5e0; border-radius: 4px;
   font-size: 0.85rem; color: #2d3748;
   &:focus { outline: none; border-color: #3182ce; }
+}
+
+.status-auto-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+
+  .auto-status-hint {
+    font-size: 0.72rem;
+    color: #718096;
+  }
 }
 
 .checkbox-group {
@@ -864,11 +1085,35 @@
 /* ステップ遷移フッターバー */
 .step-next-bar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
   padding: 1rem 1.5rem;
   background: #f8fafc;
   border-top: 1px solid #edf2f7;
   border-radius: 0 0 8px 8px;
+
+  .text-muted {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .btn {
+    white-space: nowrap;
+    margin-left: auto;
+  }
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+
+    .btn {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
 }
 
 /* 結果表示 Hero KPI カード (最重要表示) */
@@ -2095,6 +2340,1401 @@
   }
 }
 
+// ==========================================
+// STEP 1: 選択中図面のAI解析アクションカード
+// ==========================================
+.selected-drawing-action-card {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e6f0fd 100%);
+  border: 2px solid #3182ce;
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  box-shadow: 0 4px 16px rgba(49, 130, 206, 0.15);
+  animation: fadeIn 0.3s ease-out;
 
+  .action-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
 
+  .drawing-info-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .file-icon {
+      font-size: 2.2rem;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    }
+
+    .file-meta {
+      .file-badge {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #2b6cb0;
+        background: #bee3f8;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-bottom: 0.25rem;
+      }
+
+      .file-title {
+        margin: 0 0 0.2rem 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1a365d;
+      }
+
+      .file-details {
+        font-size: 0.8rem;
+        color: #4a5568;
+      }
+    }
+  }
+
+  .action-card-cta {
+    .btn-run-ai-large {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem 1.75rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #3182ce 0%, #2b6cb0 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(49, 130, 206, 0.35);
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      .btn-icon {
+        font-size: 1.25rem;
+      }
+
+      &:hover:not(:disabled) {
+        background: linear-gradient(135deg, #2b6cb0 0%, #2c5282 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(49, 130, 206, 0.45);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+  }
+}
+
+// AI解析安全中断ボタン
+.ai-cancel-action {
+  display: flex;
+  justify-content: center;
+
+  .btn-cancel-ai {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e53e3e;
+    background: #fff5f5;
+    border: 1.5px solid #feb2b2;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+      background: #fed7d7;
+      border-color: #e53e3e;
+      color: #9b2c2c;
+      transform: translateY(-1px);
+    }
+  }
+}
+
+// 解析結果エリアのチラつき・急激な高さ変動防止
+.analysis-results-section {
+  transition: opacity 0.25s ease, filter 0.25s ease;
+
+  &.is-analyzing-dimmed {
+    opacity: 0.6;
+    pointer-events: none;
+    filter: grayscale(10%);
+  }
+}
+
+.analysis-loading-box {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  color: #718096;
+}
+
+// ==========================================
+// STEP 3: 条件変更時の再生成ボタン強調 & バナー
+// ==========================================
+.btn-attention-pulse {
+  background: linear-gradient(135deg, #dd6b20 0%, #c05621 100%) !important;
+  color: #ffffff !important;
+  border: 1.5px solid #c05621 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 12px rgba(221, 107, 32, 0.6) !important;
+  animation: pulseAttention 1.5s infinite alternate !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #c05621 0%, #9c4221 100%) !important;
+  }
+}
+
+@keyframes pulseAttention {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 6px rgba(221, 107, 32, 0.4);
+  }
+  100% {
+    transform: scale(1.05);
+    box-shadow: 0 0 16px rgba(221, 107, 32, 0.85);
+  }
+}
+
+.dirty-condition-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #fffaf0;
+  border: 1.5px solid #fbd38d;
+  color: #7b341e;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+
+  .banner-icon {
+    font-size: 1.3rem;
+  }
+
+  .banner-content {
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+}
+
+// ==========================================
+// STEP 3: 単独工程切削条件個別修正モーダル
+// ==========================================
+.condition-edit-modal {
+  max-width: 480px;
+
+  .op-spec-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+
+    .spec-chip {
+      background: #edf2f7;
+      color: #2d3748;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+  }
+
+  .modal-guidance-text {
+    font-size: 0.82rem;
+    color: #718096;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .input-with-unit {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    input {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .unit-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4a5568;
+      min-width: 60px;
+    }
+  }
+
+  .form-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: #a0aec0;
+    margin-top: 0.25rem;
+  }
+}
+
+// ==========================================
+// PHASE 19: 正面加工・突切り・背面加工 バッジ
+// ==========================================
+.badge-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 4px;
+  line-height: 1.2;
+  white-space: nowrap;
+
+  &.front {
+    background: #ebf8ff;
+    color: #2b6cb0;
+    border: 1px solid #bee3f8;
+  }
+
+  &.cutoff {
+    background: #fffaf0;
+    color: #c05621;
+    border: 1px solid #feebc8;
+  }
+
+  &.back {
+    background: #faf5ff;
+    color: #6b46c1;
+    border: 1px solid #e9d8fd;
+  }
+}
+
+// ==========================================
+// PHASE 19: 正面・背面 加工方式切り替えコンテナ
+// ==========================================
+.machining-mode-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  .mode-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+
+    .mode-switch-title {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.95rem;
+      color: #2d3748;
+
+      .icon {
+        font-size: 1.1rem;
+      }
+    }
+
+    .mode-toggle-group {
+      display: flex;
+      gap: 0.4rem;
+      background: #edf2f7;
+      padding: 3px;
+      border-radius: 6px;
+
+      .mode-toggle-btn {
+        border: none;
+        background: transparent;
+        padding: 0.45rem 0.9rem;
+        border-radius: 4px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #4a5568;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover:not(.active) {
+          background: #e2e8f0;
+          color: #1a202c;
+        }
+
+        &.active {
+          background: #2b6cb0;
+          color: #ffffff;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }
+      }
+    }
+  }
+
+  .front-back-analysis-card {
+    margin-top: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.85rem;
+
+    .analysis-grid {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      justify-content: space-between;
+
+      @media (max-width: 768px) {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .analysis-box {
+        flex: 1;
+        min-width: 0;
+        background: #ffffff;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        position: relative;
+        transition: all 0.2s ease;
+
+        &.front {
+          border-left: 4px solid #3182ce;
+        }
+
+        &.cutoff {
+          border-left: 4px solid #dd6b20;
+        }
+
+        &.back {
+          border-left: 4px solid #805ad5;
+        }
+
+        &.is-dominant {
+          border-color: #3182ce;
+          box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.25), 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+          background: linear-gradient(to bottom, #ffffff, #f0f7ff);
+
+          .side-tag {
+            font-weight: 800;
+          }
+        }
+
+        .box-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.35rem;
+
+          .side-tag {
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 2px 6px;
+
+            &.tag-front {
+              background: #ebf8ff;
+              color: #2b6cb0;
+            }
+
+            &.tag-cutoff {
+              background: #feebc8;
+              color: #c05621;
+            }
+
+            &.tag-back {
+              background: #faf5ff;
+              color: #6b46c1;
+            }
+          }
+
+          .dominant-pill {
+            font-size: 0.7rem;
+            font-weight: 700;
+            background: #2b6cb0;
+            color: #ffffff;
+            border-radius: 9999px;
+            padding: 2px 7px;
+            box-shadow: 0 1px 3px rgba(43, 108, 176, 0.3);
+          }
+        }
+
+        .box-time {
+          font-size: 1.35rem;
+          font-weight: 700;
+          color: #1a202c;
+
+          .unit {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: #718096;
+            margin-left: 2px;
+          }
+        }
+
+        .box-desc {
+          font-size: 0.75rem;
+          color: #718096;
+          margin-top: 3px;
+        }
+      }
+
+      .analysis-operator {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #a0aec0;
+        padding: 0 0.2rem;
+        white-space: nowrap;
+        text-align: center;
+
+        @media (max-width: 768px) {
+          padding: 0.25rem 0;
+        }
+      }
+    }
+
+    .dominant-summary-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.6rem 0.85rem;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+
+      .dominant-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.84rem;
+        color: #2d3748;
+        line-height: 1.4;
+
+        .badge-simultaneous {
+          background: #ebf8ff;
+          color: #2b6cb0;
+          border: 1px solid #bee3f8;
+          border-radius: 4px;
+          padding: 2px 8px;
+          font-weight: 700;
+          font-size: 0.75rem;
+          white-space: nowrap;
+        }
+
+        .badge-sequential {
+          background: #edf2f7;
+          color: #4a5568;
+          border: 1px solid #cbd5e0;
+          border-radius: 4px;
+          padding: 2px 8px;
+          font-weight: 700;
+          font-size: 0.75rem;
+          white-space: nowrap;
+        }
+
+        strong {
+          color: #1a202c;
+          text-decoration: underline;
+        }
+      }
+
+      .saved-time-tag {
+        background: #f0fff4;
+        color: #22543d;
+        border: 1px solid #9ae6b4;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-weight: 700;
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
+    }
+  }
+}
+
+// ==============================================================
+// STEP 2: ビジュアル解説 ＆ NC旋盤アニメーション スプリットビュー
+// ==============================================================
+.step2-split-layout {
+  display: grid;
+  grid-template-columns: minmax(460px, 1.15fr) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  margin-top: 1rem;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.visual-panel-column {
+  position: sticky;
+  top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  // 🎯 実図面 ＆ バルーン表示専用カード
+  .balloon-viewer-card {
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    // ヘッダーバー
+    .balloon-viewer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      border-bottom: 1.5px solid #e2e8f0;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+
+      .viewer-title-box {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+
+        .viewer-title-icon {
+          font-size: 1.35rem;
+        }
+
+        .viewer-title {
+          margin: 0;
+          font-size: 0.98rem;
+          font-weight: 800;
+          color: #0f172a;
+          letter-spacing: -0.01em;
+        }
+
+        .viewer-meta {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-top: 0.25rem;
+          flex-wrap: wrap;
+
+          .view-target-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+
+            &.ops {
+              background: #e0f2fe;
+              color: #0369a1;
+              border: 1px solid #bae6fd;
+            }
+
+            &.feat {
+              background: #f0fdf4;
+              color: #15803d;
+              border: 1px solid #bbf7d0;
+            }
+          }
+
+          .pin-count-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #475569;
+            background: #e2e8f0;
+            padding: 2px 7px;
+            border-radius: 10px;
+          }
+
+          .drag-hint {
+            font-size: 0.72rem;
+            color: #64748b;
+          }
+        }
+      }
+
+      .drawing-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+
+        .zoom-btn-group {
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+          background: #ffffff;
+          padding: 3px 6px;
+          border-radius: 6px;
+          border: 1px solid #cbd5e1;
+
+          .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            height: auto;
+          }
+
+          .zoom-level-badge {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #1e293b;
+            min-width: 42px;
+            text-align: center;
+          }
+        }
+
+        .fullscreen-btn {
+          font-size: 0.78rem;
+          font-weight: 700;
+          padding: 0.35rem 0.75rem;
+          box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+        }
+      }
+    }
+
+    // キャンバス表示エリア
+    .drawing-canvas-viewport {
+      position: relative;
+      background: #e2e8f0;
+      min-height: 400px;
+      max-height: 520px;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+
+      .no-drawing-placeholder {
+        color: #64748b;
+        font-size: 0.9rem;
+        text-align: center;
+        padding: 3rem 1.5rem;
+        background: #ffffff;
+        border-radius: 8px;
+        border: 2px dashed #cbd5e1;
+
+        .no-drawing-icon {
+          font-size: 2.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        p {
+          margin: 0;
+          line-height: 1.6;
+        }
+      }
+
+      .drawing-canvas-inner {
+        position: relative;
+        transform-origin: top center;
+        transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+        background: #ffffff;
+        border-radius: 6px;
+        overflow: visible;
+
+        .real-drawing-image {
+          display: block;
+          max-width: 100%;
+          height: auto;
+          user-select: none;
+          pointer-events: none;
+        }
+
+        .balloons-overlay-layer {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+
+          .balloon-pin {
+            position: absolute;
+            pointer-events: auto;
+            cursor: grab;
+            transform: translate(-50%, -50%);
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            z-index: 10;
+            transition: transform 0.15s ease, z-index 0s;
+
+            &:active {
+              cursor: grabbing;
+            }
+
+            .pin-anchor-ring {
+              position: absolute;
+              bottom: -4px;
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              background: #ffffff;
+              border: 2px solid #0f172a;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            }
+
+            .pin-bubble {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              padding: 3px 8px 3px 4px;
+              border-radius: 9999px;
+              font-size: 0.75rem;
+              font-weight: 800;
+              box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+              border: 1.5px solid #ffffff;
+              transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+              .pin-num {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: #ffffff;
+                font-size: 0.72rem;
+                font-weight: 900;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+              }
+
+              .pin-label-tag {
+                font-size: 0.7rem;
+                letter-spacing: -0.2px;
+                white-space: nowrap;
+              }
+            }
+
+            // 正面加工 (ブルー)
+            &.front .pin-bubble {
+              background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+              color: #ffffff;
+              .pin-num { color: #1d4ed8; }
+            }
+
+            // 突切り・受渡 (オレンジ)
+            &.cutoff .pin-bubble {
+              background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
+              color: #ffffff;
+              .pin-num { color: #c2410c; }
+            }
+
+            // 背面加工 (パープル)
+            &.back .pin-bubble {
+              background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+              color: #ffffff;
+              .pin-num { color: #6d28d9; }
+            }
+
+            // ホバー時
+            &:hover, &.is-hovered {
+              z-index: 50;
+              .pin-bubble {
+                transform: scale(1.15);
+                box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+              }
+            }
+
+            // 選択中（アクティブ）
+            &.active {
+              z-index: 60;
+              .pin-bubble {
+                transform: scale(1.22);
+                border-color: #fef08a;
+                box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.8), 0 8px 18px rgba(0, 0, 0, 0.45);
+                animation: pulseActiveBalloon 1.6s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
+              }
+            }
+
+            // ホバー・アクティブ時の詳細ポップオーバー
+            .pin-popover {
+              position: absolute;
+              bottom: calc(100% + 8px);
+              left: 50%;
+              transform: translateX(-50%);
+              width: 220px;
+              background: #0f172a;
+              color: #f8fafc;
+              border: 1px solid #334155;
+              border-radius: 8px;
+              padding: 0.6rem 0.75rem;
+              box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+              font-size: 0.76rem;
+              line-height: 1.4;
+              pointer-events: auto;
+              z-index: 100;
+
+              &::after {
+                content: '';
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                transform: translateX(-50%);
+                border-width: 6px;
+                border-style: solid;
+                border-color: #0f172a transparent transparent transparent;
+              }
+
+              .popover-header {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                border-bottom: 1px solid #1e293b;
+                padding-bottom: 0.35rem;
+                margin-bottom: 0.35rem;
+
+                .popover-seq {
+                  background: #38bdf8;
+                  color: #0f172a;
+                  font-weight: 800;
+                  font-size: 0.68rem;
+                  padding: 1px 5px;
+                  border-radius: 3px;
+                }
+
+                .popover-title {
+                  font-weight: 700;
+                  color: #ffffff;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                }
+              }
+
+              .popover-body {
+                display: flex;
+                flex-direction: column;
+                gap: 0.2rem;
+
+                .popover-row {
+                  display: flex;
+                  justify-content: space-between;
+                  color: #cbd5e1;
+
+                  .popover-lbl {
+                    color: #94a3b8;
+                  }
+
+                  strong {
+                    color: #f1f5f9;
+                  }
+                }
+              }
+
+              .popover-footer {
+                margin-top: 0.4rem;
+                padding-top: 0.3rem;
+                border-top: 1px dashed #334155;
+                text-align: center;
+
+                .popover-drag-guide {
+                  font-size: 0.68rem;
+                  color: #38bdf8;
+                  font-weight: 600;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 初心者・営業向け「やさしい加工解説カード」
+    .guide-narrative-card {
+      padding: 1rem 1.25rem;
+      background: #fbfcfe;
+      border-top: 1.5px solid #e2e8f0;
+
+      &.feat-mode-card {
+        background: #f8fafc;
+      }
+
+      .card-top-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+
+        .guide-badge-side {
+          font-size: 0.72rem;
+          font-weight: 800;
+          padding: 2px 8px;
+          border-radius: 4px;
+
+          &.front {
+            background: #ebf8ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+          }
+          &.cutoff {
+            background: #fffaf0;
+            color: #c2410c;
+            border: 1px solid #fed7aa;
+          }
+          &.back {
+            background: #faf5ff;
+            color: #6d28d9;
+            border: 1px solid #ddd6fe;
+          }
+        }
+
+        .guide-title {
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 800;
+          color: #0f172a;
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+
+          .op-seq-pill {
+            font-size: 0.75rem;
+            font-weight: 800;
+            background: #e2e8f0;
+            color: #334155;
+            padding: 1px 7px;
+            border-radius: 12px;
+          }
+
+          .feat-desc-sub {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #64748b;
+          }
+        }
+
+        .tool-chip {
+          margin-left: auto;
+          font-size: 0.78rem;
+          font-weight: 700;
+          background: #edf2f7;
+          color: #334155;
+          padding: 3px 8px;
+          border-radius: 6px;
+          border: 1px solid #cbd5e1;
+        }
+      }
+
+      .guide-explanation {
+        margin: 0 0 0.85rem 0;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: #1e293b;
+      }
+
+      .guide-bottom-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding-top: 0.6rem;
+        border-top: 1px dashed #cbd5e1;
+
+        .sales-memo {
+          font-size: 0.84rem;
+          color: #334155;
+          line-height: 1.45;
+          flex: 1;
+
+          .memo-label {
+            font-weight: 800;
+            color: #b45309;
+            margin-right: 0.35rem;
+          }
+        }
+
+        .dim-memo {
+          font-size: 0.84rem;
+          color: #64748b;
+
+          strong {
+            color: #0f172a;
+            font-weight: 800;
+            margin-left: 0.3rem;
+          }
+        }
+      }
+    }
+  }
+}
+
+@keyframes pulseActiveBalloon {
+  0% { transform: scale(1.18); }
+  100% { transform: scale(1.28); }
+}
+
+/* ==========================================================================
+   実図面 全画面拡大モーダル
+   ========================================================================== */
+.fullscreen-drawing-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+
+  .fullscreen-drawing-modal {
+    background: #ffffff;
+    width: 96vw;
+    height: 94vh;
+    border-radius: 14px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .fullscreen-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.85rem 1.25rem;
+      background: #0f172a;
+      color: #ffffff;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+
+      .fs-title-group {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+
+        .fs-icon {
+          font-size: 1.35rem;
+        }
+
+        h3 {
+          margin: 0;
+          font-size: 1.1rem;
+          font-weight: 800;
+          color: #ffffff;
+        }
+
+        .badge-tab-indicator {
+          font-size: 0.75rem;
+          font-weight: 700;
+          background: #38bdf8;
+          color: #0f172a;
+          padding: 2px 8px;
+          border-radius: 4px;
+        }
+
+        .fs-hint {
+          font-size: 0.78rem;
+          color: #94a3b8;
+          margin-left: 0.5rem;
+        }
+      }
+
+      .fs-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+
+        .zoom-btn-group {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          background: #1e293b;
+          padding: 3px 6px;
+          border-radius: 6px;
+          border: 1px solid #334155;
+
+          .btn {
+            background: #334155;
+            color: #ffffff;
+            border: none;
+            padding: 0.25rem 0.55rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+
+            &:hover {
+              background: #475569;
+            }
+          }
+
+          .zoom-level-badge {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #38bdf8;
+            min-width: 44px;
+            text-align: center;
+          }
+        }
+
+        .fs-close-btn {
+          font-weight: 700;
+          background: #ef4444;
+          color: #ffffff;
+          border: none;
+
+          &:hover {
+            background: #dc2626;
+          }
+        }
+      }
+    }
+
+    .fullscreen-canvas-viewport {
+      flex: 1;
+      background: #1e293b;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+
+      .drawing-canvas-inner {
+        position: relative;
+        transform-origin: top center;
+        transition: transform 0.15s ease-out;
+        background: #ffffff;
+        border-radius: 6px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+        .real-drawing-image {
+          display: block;
+          max-width: 100%;
+          height: auto;
+          user-select: none;
+          pointer-events: none;
+        }
+
+        .balloons-overlay-layer {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+
+          .balloon-pin {
+            position: absolute;
+            pointer-events: auto;
+            cursor: grab;
+            transform: translate(-50%, -50%);
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            z-index: 10;
+
+            &:active {
+              cursor: grabbing;
+            }
+
+            .pin-anchor-ring {
+              position: absolute;
+              bottom: -4px;
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              background: #ffffff;
+              border: 2px solid #0f172a;
+            }
+
+            .pin-bubble {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              padding: 3px 8px 3px 4px;
+              border-radius: 9999px;
+              font-size: 0.78rem;
+              font-weight: 800;
+              box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+              border: 1.5px solid #ffffff;
+
+              .pin-num {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                background: #ffffff;
+                font-size: 0.75rem;
+                font-weight: 900;
+              }
+
+              .pin-label-tag {
+                font-size: 0.72rem;
+                white-space: nowrap;
+              }
+            }
+
+            &.front .pin-bubble {
+              background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+              color: #ffffff;
+              .pin-num { color: #1d4ed8; }
+            }
+
+            &.cutoff .pin-bubble {
+              background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
+              color: #ffffff;
+              .pin-num { color: #c2410c; }
+            }
+
+            &.back .pin-bubble {
+              background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+              color: #ffffff;
+              .pin-num { color: #6d28d9; }
+            }
+
+            &:hover, &.is-hovered {
+              z-index: 50;
+              .pin-bubble {
+                transform: scale(1.15);
+              }
+            }
+
+            &.active {
+              z-index: 60;
+              .pin-bubble {
+                transform: scale(1.22);
+                border-color: #fef08a;
+                box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.8), 0 8px 18px rgba(0, 0, 0, 0.45);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// 右側テーブルのインタラクティブ・行ハイライト
+.interactive-table {
+  tbody tr {
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #f7fafc;
+    }
+
+    &.row-interactive-active {
+      background: #ebf8ff !important;
+      outline: 2px solid #3182ce;
+      outline-offset: -2px;
+
+      td {
+        font-weight: 600;
+        color: #1a365d;
+      }
+    }
+
+    .step-num-bubble {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #edf2f7;
+      color: #4a5568;
+      font-size: 0.78rem;
+      font-weight: 700;
+      transition: all 0.2s ease;
+
+      &.is-active {
+        background: #2b6cb0;
+        color: #ffffff;
+        box-shadow: 0 1px 4px rgba(43, 108, 176, 0.4);
+      }
+    }
+  }
+}
+
+// 設備自動選定 & 特注仕様バッジ & AI理由
+.label-row-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+
+  .btn-auto-select-machine {
+    font-size: 0.78rem;
+    padding: 0.2rem 0.6rem;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #15803d;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #16a34a;
+      color: #ffffff;
+      border-color: #16a34a;
+    }
+  }
+}
+
+.machine-spec-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  .spec-pill {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    border-radius: 12px;
+    font-weight: 500;
+
+    &.subspindle-active {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #0369a1;
+      font-weight: 600;
+    }
+
+    &.special-pill {
+      background: #fef3c7;
+      border-color: #fcd34d;
+      color: #b45309;
+      font-weight: 600;
+    }
+  }
+}
+
+.ai-feasibility-box {
+  background: #f8fafc;
+  border-left: 3px solid #6366f1;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0 6px 6px 0;
+  margin-top: 0.5rem;
+
+  .ai-feasibility-title {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: #4338ca;
+    margin-bottom: 0.25rem;
+  }
+
+  .ai-feasibility-text {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #475569;
+    line-height: 1.45;
+  }
+}
 

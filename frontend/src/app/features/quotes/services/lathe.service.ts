@@ -36,10 +36,28 @@ export class LatheService {
    * NC自動旋盤サイクルタイム計算実行
    * POST /api/quotes/:id/lathe-cycle-time/calculate
    */
-  calculateLatheCycleTime(quoteId: number): Observable<LatheCycleTimeSummary> {
+  calculateLatheCycleTime(
+    quoteId: number,
+    options?: { maxRpm?: number; machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL' }
+  ): Observable<LatheCycleTimeSummary> {
     return this.http.post<LatheCycleTimeSummary>(
       `${this.baseUrl}/quotes/${quoteId}/lathe-cycle-time/calculate`,
-      {}
+      options || {}
+    );
+  }
+
+  /**
+   * 同時加工 / 順次加工 モード切替 & 再計算 (PHASE19)
+   * PUT /api/quotes/:id/lathe-machining-mode
+   */
+  updateMachiningMode(
+    quoteId: number,
+    mode: 'SIMULTANEOUS' | 'SEQUENTIAL',
+    maxRpm?: number
+  ): Observable<LatheCycleTimeSummary> {
+    return this.http.put<LatheCycleTimeSummary>(
+      `${this.baseUrl}/quotes/${quoteId}/lathe-machining-mode`,
+      { mode, maxRpm }
     );
   }
 
@@ -71,6 +89,21 @@ export class LatheService {
   getLatheMasters(): Observable<any> {
     return this.http.get<any>(
       `${this.baseUrl}/lathe-masters`
+    );
+  }
+
+  /**
+   * 単一工程の切削条件（回転数、送り）の個別修正・再計算
+   * PUT /api/quotes/:id/lathe-operations/:opId
+   */
+  updateOperationCondition(
+    quoteId: number,
+    opId: number,
+    data: { feed?: number; rpm?: number; vc?: number }
+  ): Observable<LatheCycleTimeSummary> {
+    return this.http.put<LatheCycleTimeSummary>(
+      `${this.baseUrl}/quotes/${quoteId}/lathe-operations/${opId}`,
+      data
     );
   }
 }

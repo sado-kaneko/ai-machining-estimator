@@ -18,6 +18,7 @@ import correctionRoutes from './routes/correction.routes';
 import quoteManagementRoutes from './routes/quote-management.routes';
 import similarityRoutes from './routes/similarity.routes';
 import accuracyRoutes from './routes/accuracy.routes';
+import masterRoutes from './routes/master.routes';
 
 const app = express();
 
@@ -26,17 +27,20 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// マスタ整備ルーターのマウント (/api/masters/machines, /api/masters/tools)
+app.use('/api', masterRoutes);
+
 // ヘルスチェックルーターのマウント (/api/health, /api/health/database)
 app.use('/api/health', healthRoutes);
+
+// PHASE17: 見積業務管理ルーターのマウント (/api/quotes/search/similar, /api/quotes/:id/complete, /api/quotes/:id/basis, /api/quotes/:id/history)
+app.use('/api', quoteManagementRoutes);
 
 // PHASE18: 類似加工検索ルーターのマウント (/api/quotes/:id/similar)
 app.use('/api', similarityRoutes);
 
 // PHASE18: 予測精度分析ルーターのマウント (/api/accuracy/...)
 app.use('/api', accuracyRoutes);
-
-// PHASE17: 見積業務管理ルーターのマウント (/api/quotes/search/similar, /api/quotes/:id/complete, /api/quotes/:id/basis, /api/quotes/:id/history)
-app.use('/api', quoteManagementRoutes);
 
 // 見積案件CRUDルーターのマウント (/api/quotes)
 app.use('/api/quotes', quoteRoutes);

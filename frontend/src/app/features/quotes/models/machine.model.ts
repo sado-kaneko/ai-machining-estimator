@@ -6,6 +6,11 @@ export interface Machine {
   maker: string | null;
   model: string | null;
   maxRpm: number;
+  maxBarDiameter?: number | null;
+  maxMachiningLength?: number | null;
+  hasSubSpindle?: boolean | null;
+  maxTools?: number | null;
+  specialOptions?: string | null;
 }
 
 export interface QuoteMachineSelection {
@@ -16,4 +21,10 @@ export interface QuoteMachineSelection {
   maker: string | null;
   model: string | null;
   maxRpm: number;
+  maxBarDiameter?: number | null;
+  maxMachiningLength?: number | null;
+  hasSubSpindle?: boolean | null;
+  maxTools?: number | null;
+  specialOptions?: string | null;
 }
+

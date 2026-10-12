@@ -39,4 +39,12 @@ export class FeatureService {
   updateFeature(id: number, data: UpdateFeatureRequest): Observable<Feature> {
     return this.http.put<Feature>(`${this.baseUrl}/features/${id}`, data);
   }
+
+  /**
+   * 加工Featureの削除
+   * DELETE /api/features/:id
+   */
+  deleteFeature(id: number): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<{ success: boolean; message: string }>(`${this.baseUrl}/features/${id}`);
+  }
 }

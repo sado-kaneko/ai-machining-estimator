@@ -44,7 +44,7 @@ export class CalculationService {
    */
   calculateCycleTime(
     quoteId: number,
-    options?: { maxRpm?: number }
+    options?: { maxRpm?: number; machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL' }
   ): Observable<LatheCycleTimeSummary> {
     return this.http.post<LatheCycleTimeSummary>(
       `${this.baseUrl}/quotes/${quoteId}/cycle-time/calculate`,

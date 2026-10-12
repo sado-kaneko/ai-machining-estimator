@@ -70,6 +70,32 @@
       color: #1a365d;
     }
 
+    &.active {
+      color: #1a365d;
+      background: #e2e8f0;
+    }
+
+    &.nav-btn-master {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+
+      &:hover {
+        background: #dbeafe;
+        color: #1e40af;
+        border-color: #93c5fd;
+      }
+
+      &.active {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #2563eb;
+      }
+    }
+
     &.nav-highlight {
       background: #ebf8ff;
       border: 1px solid #bee3f8;

@@ -33,5 +33,8 @@ export interface DrawingAnalysis {
   material: string | null;
   stockDiameter: number | null;
   overallLength: number | null;
+  recommendedMachine?: string | null;
+  machineFeasibilityReason?: string | null;
   createdAt: string;
 }
+

@@ -94,6 +94,42 @@ export class DrawingController {
     }
   }
 
+  /**
+   * 図面画像取得 (GET /api/drawings/:id/image)
+   */
+  async getDrawingImage(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const id = parseInt(rawId, 10);
+      if (isNaN(id) || id <= 0) {
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid drawing ID',
+          },
+        });
+        return;
+      }
+
+      const { buffer, mimeType } = await drawingService.getDrawingImage(id);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.status(200).send(buffer);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      if (err?.message === 'DRAWING_NOT_FOUND' || err?.message === 'PDF_FILE_NOT_FOUND') {
+        res.status(404).json({
+          error: {
+            code: 'DRAWING_NOT_FOUND',
+            message: 'Drawing not found',
+          },
+        });
+        return;
+      }
+      this.handleError(res, error);
+    }
+  }
+
   private handleError(res: Response, error: unknown): void {
     const err = error as { message?: string };
     if (err?.message === 'QUOTE_NOT_FOUND') {

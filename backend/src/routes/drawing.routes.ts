@@ -20,9 +20,19 @@ router.post('/drawings/:id/analyze', (req, res) => {
   drawingAnalysisController.analyzeDrawing(req, res);
 });
 
+// POST /api/drawings/:id/cancel-analysis (図面AI解析の中断)
+router.post('/drawings/:id/cancel-analysis', (req, res) => {
+  drawingAnalysisController.cancelAnalysis(req, res);
+});
+
 // GET /api/drawings/:id/analysis (最新の解析結果取得)
 router.get('/drawings/:id/analysis', (req, res) => {
   drawingAnalysisController.getLatestAnalysis(req, res);
+});
+
+// GET /api/drawings/:id/image (図面画像取得)
+router.get('/drawings/:id/image', (req, res) => {
+  drawingController.getDrawingImage(req, res);
 });
 
 // DELETE /api/drawings/:id (図面削除)

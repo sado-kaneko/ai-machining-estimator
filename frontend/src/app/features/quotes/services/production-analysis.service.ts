@@ -11,12 +11,14 @@ import {
   AnalysisExecutionResult,
 } from '../models/production-analysis.model';
 
+import { environment } from '../../../../environments/environment';
+
 @Injectable({
   providedIn: 'root',
 })
 export class ProductionAnalysisService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:3100/api';
+  private readonly baseUrl = environment.apiBaseUrl;
 
   /**
    * 全体概要分析の取得

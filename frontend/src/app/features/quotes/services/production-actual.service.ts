@@ -6,12 +6,14 @@ import {
   ProductionSyncResult,
 } from '../models/production-actual.model';
 
+import { environment } from '../../../../environments/environment';
+
 @Injectable({
   providedIn: 'root',
 })
 export class ProductionActualService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:3100/api';
+  private readonly baseUrl = environment.apiBaseUrl;
 
   /**
    * sadoa生産実績同期を実行

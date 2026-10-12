@@ -4,6 +4,7 @@ export interface Operation {
   featureId: number | null;
   sequenceNo: number;
   operationType: string;
+  machiningSide: 'FRONT' | 'CUTOFF' | 'BACK';
   description: string;
   machineType: string;
   status: string;
@@ -24,6 +25,7 @@ export interface GenerateOperationsResponse {
 
 export interface UpdateOperationRequest {
   sequenceNo?: number;
+  machiningSide?: 'FRONT' | 'CUTOFF' | 'BACK';
   description?: string;
   machineType?: string;
   status?: string;

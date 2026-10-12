@@ -1,0 +1,383 @@
+<div class="master-container">
+  <!-- ページヘッダー -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="title-with-badge">
+        <h2>🛠️ 自社マスタ整備 (設備・特注オプション・工具)</h2>
+        <span class="badge-status">マスター管理</span>
+      </div>
+      <p class="subtitle">
+        自社保有の加工設備スペック、特注機オプション（高圧クーラント、サブ主軸、把握径拡張等）、および標準工具を管理します。ここで設定された設備仕様をもとに、AI図面解析後に加工可能な設備が自動選定されます。
+      </p>
+    </div>
+    <div class="header-actions">
+      <a routerLink="/quotes" class="btn btn-secondary">← 案件一覧へ戻る</a>
+    </div>
+  </div>
+
+  @if (successMessage()) {
+  <div class="alert alert-success">{{ successMessage() }}</div>
+  }
+  @if (errorMessage()) {
+  <div class="alert alert-error">{{ errorMessage() }}</div>
+  }
+
+  <!-- マスタタブ切り替え -->
+  <div class="master-tabs">
+    <button type="button" class="tab-btn" [class.active]="activeTab() === 'machines'" (click)="setTab('machines')">
+      🏭 加工設備・特注機マスタ ({{ machines().length }}台)
+    </button>
+    <button type="button" class="tab-btn" [class.active]="activeTab() === 'tools'" (click)="setTab('tools')">
+      🔪 工具マスタ ({{ tools().length }}本)
+    </button>
+  </div>
+
+  <!-- 1. 加工設備・特注機マスタ タブ -->
+  @if (activeTab() === 'machines') {
+  <div class="master-section-card">
+    <div class="section-top-bar">
+      <div>
+        <h3>加工設備一覧</h3>
+        <p class="section-desc">自動旋盤の基本仕様と、自社でカスタマイズした特注オプション設定です。</p>
+      </div>
+      <button type="button" class="btn btn-primary" (click)="openAddMachineModal()">
+        ＋ 設備・特注機を新規登録
+      </button>
+    </div>
+
+    @if (isLoading()) {
+    <div class="loading-box">設備マスタを読込中...</div>
+    } @else {
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 50px;">ID</th>
+            <th>機械名称</th>
+            <th style="width: 140px;">メーカー / 型番</th>
+            <th style="width: 100px;" class="text-right">最大棒材径</th>
+            <th style="width: 100px;" class="text-right">最大加工長</th>
+            <th style="width: 100px;" class="text-right">最高RPM</th>
+            <th style="width: 90px;" class="text-center">サブ主軸</th>
+            <th>特注機オプション・仕様備考</th>
+            <th style="width: 70px;" class="text-center">状態</th>
+            <th style="width: 130px;" class="text-center">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of machines(); track m.id) {
+          <tr [class.row-inactive]="!m.isActive">
+            <td class="text-center">{{ m.id }}</td>
+            <td class="font-bold">
+              <span class="machine-name-text">{{ m.machineName }}</span>
+              <span class="badge-engine">{{ m.machineType }}</span>
+            </td>
+            <td>
+              <div class="maker-model">
+                <span class="maker-text">{{ m.maker || '-' }}</span>
+                <span class="model-text">{{ m.model || '-' }}</span>
+              </div>
+            </td>
+            <td class="text-right font-num">φ{{ m.maxBarDiameter }} mm</td>
+            <td class="text-right font-num">L{{ m.maxMachiningLength }} mm</td>
+            <td class="text-right font-num">{{ m.maxRpm }} rpm</td>
+            <td class="text-center">
+              @if (m.hasSubSpindle) {
+              <span class="badge-feature sub">あり (背面可)</span>
+              } @else {
+              <span class="badge-feature no-sub">なし</span>
+              }
+            </td>
+            <td>
+              @if (m.specialOptions) {
+              <div class="special-options-tag">
+                <span class="opt-icon">⚡</span>
+                <span class="opt-text">{{ m.specialOptions }}</span>
+              </div>
+              } @else {
+              <span class="text-muted">標準仕様 (特注なし)</span>
+              }
+            </td>
+            <td class="text-center">
+              @if (m.isActive) {
+              <span class="badge badge-active">稼働中</span>
+              } @else {
+              <span class="badge badge-inactive">休止</span>
+              }
+            </td>
+            <td class="text-center">
+              <div class="action-btn-group">
+                <button type="button" class="btn btn-outline-primary btn-sm" (click)="openEditMachineModal(m)">
+                  編集
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" (click)="handleDeleteMachine(m)">
+                  削除
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- 2. 工具マスタ タブ -->
+  @if (activeTab() === 'tools') {
+  <div class="master-section-card">
+    <div class="section-top-bar">
+      <div>
+        <h3>標準工具一覧</h3>
+        <p class="section-desc">自動旋盤に装着されるバイト・ドリル・刃物の標準寸法と推奨切削条件です。</p>
+      </div>
+      <button type="button" class="btn btn-primary" (click)="openAddToolModal()">
+        ＋ 工具を新規登録
+      </button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 100px;">工具コード</th>
+            <th>工具名</th>
+            <th style="width: 120px;">用途分類</th>
+            <th style="width: 140px;">適合材質</th>
+            <th style="width: 80px;" class="text-right">刃幅</th>
+            <th style="width: 80px;" class="text-right">ノーズR</th>
+            <th style="width: 90px;" class="text-right">推奨送り(f)</th>
+            <th style="width: 90px;" class="text-right">推奨Vc</th>
+            <th>備考</th>
+            <th style="width: 70px;" class="text-center">状態</th>
+            <th style="width: 130px;" class="text-center">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of tools(); track t.id) {
+          <tr [class.row-inactive]="!t.isActive">
+            <td class="font-bold font-code">{{ t.toolCode }}</td>
+            <td class="font-bold">{{ t.toolName }}</td>
+            <td><span class="badge-category">{{ t.toolCategory }}</span></td>
+            <td>{{ t.materialCompatibility || '-' }}</td>
+            <td class="text-right font-num">{{ t.bladeWidth !== null ? (t.bladeWidth + ' mm') : '-' }}</td>
+            <td class="text-right font-num">{{ t.noseRadius !== null ? ('R' + t.noseRadius) : '-' }}</td>
+            <td class="text-right font-num">{{ t.defaultFeed !== null ? t.defaultFeed : '-' }}</td>
+            <td class="text-right font-num">{{ t.defaultVc !== null ? (t.defaultVc + ' m/min') : '-' }}</td>
+            <td>{{ t.notes || '-' }}</td>
+            <td class="text-center">
+              @if (t.isActive) {
+              <span class="badge badge-active">有効</span>
+              } @else {
+              <span class="badge badge-inactive">無効</span>
+              }
+            </td>
+            <td class="text-center">
+              <div class="action-btn-group">
+                <button type="button" class="btn btn-outline-primary btn-sm" (click)="openEditToolModal(t)">
+                  編集
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" (click)="handleDeleteTool(t)">
+                  削除
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+  }
+
+  <!-- 加工設備 登録・編集モーダル -->
+  @if (showMachineModal()) {
+  <div class="modal-backdrop" (click)="closeMachineModal()">
+    <div class="modal-dialog modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ editingMachineId() !== null ? '加工設備・特注機の編集' : '加工設備・特注機の新規登録' }}</h3>
+        <button type="button" class="btn-close" (click)="closeMachineModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>機械名称 *</label>
+            <input type="text" [(ngModel)]="machineForm.machineName" class="form-control" placeholder="例: NC自動旋盤 (シチズン L20 特注)" />
+          </div>
+          <div class="form-group">
+            <label>設備分類</label>
+            <select [(ngModel)]="machineForm.machineType" class="form-control">
+              <option value="NC_AUTOMATIC_LATHE">NC自動旋盤 (スイス型自動旋盤)</option>
+              <option value="CNC_LATHE">CNC一般旋盤</option>
+              <option value="TURNING_CENTER">複合ターニングセンタ</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>メーカー</label>
+            <input type="text" [(ngModel)]="machineForm.maker" class="form-control" placeholder="例: シチズンマシナリー / ツガミ / スター精密" />
+          </div>
+          <div class="form-group">
+            <label>型番・モデル</label>
+            <input type="text" [(ngModel)]="machineForm.model" class="form-control" placeholder="例: Cincom L20 Type IX" />
+          </div>
+        </div>
+
+        <div class="specs-box">
+          <h4 class="specs-title">📐 機械スペック・加工制約</h4>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>最大棒材把握径 (φ mm) *</label>
+              <input type="number" [(ngModel)]="machineForm.maxBarDiameter" class="form-control" step="0.5" placeholder="例: 20" />
+              <small class="help-text">これを超える素材径は加工不可判定</small>
+            </div>
+            <div class="form-group">
+              <label>最大加工長 (L mm) *</label>
+              <input type="number" [(ngModel)]="machineForm.maxMachiningLength" class="form-control" step="1" placeholder="例: 200" />
+            </div>
+            <div class="form-group">
+              <label>主軸最高回転数 (RPM) *</label>
+              <input type="number" [(ngModel)]="machineForm.maxRpm" class="form-control" step="100" placeholder="例: 6000" />
+            </div>
+          </div>
+
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>サブ主軸 (第2主軸) *</label>
+              <select [(ngModel)]="machineForm.hasSubSpindle" class="form-control">
+                <option [ngValue]="true">あり (背面同時加工可能)</option>
+                <option [ngValue]="false">なし (正面加工のみ)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>ガイドブッシュ仕様</label>
+              <select [(ngModel)]="machineForm.guideBushType" class="form-control">
+                <option value="GUIDE_BUSH">回転ガイドブッシュ (細長物・高精度)</option>
+                <option value="NON_GUIDE_BUSH">ガイドブッシュレス (残材短縮・短物)</option>
+                <option value="BOTH">切替可能仕様</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>最大装着工具本数</label>
+              <input type="number" [(ngModel)]="machineForm.maxTools" class="form-control" step="1" placeholder="例: 18" />
+            </div>
+          </div>
+        </div>
+
+        <div class="custom-options-box">
+          <h4 class="specs-title">⚡ 特注機オプション・仕様備考 (AIマッチング参照)</h4>
+          <p class="specs-subtext">自社で導入したオプション機能や特注仕様を記載してください。図面解析時にAIが設備候補を選定する際の重要な根拠となります。</p>
+          <div class="form-group">
+            <textarea [(ngModel)]="machineForm.specialOptions" class="form-control" rows="3"
+              placeholder="例: 高圧クーラント仕様（小径深穴ドリル加工対応）、背面複合回転工具4軸増設済み、コレットチャック把握最大φ32mm特注拡張、チャック圧比例制御機能あり"></textarea>
+          </div>
+        </div>
+
+        <div class="form-group checkbox-row">
+          <label>
+            <input type="checkbox" [(ngModel)]="machineForm.isActive" />
+            この設備を見積・自動選定の候補として有効化する
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeMachineModal()">キャンセル</button>
+        <button type="button" class="btn btn-primary" (click)="handleSaveMachine()">
+          {{ editingMachineId() !== null ? '更新する' : '登録する' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- 工具 登録・編集モーダル -->
+  @if (showToolModal()) {
+  <div class="modal-backdrop" (click)="closeToolModal()">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ editingToolId() !== null ? '工具の編集' : '工具の新規登録' }}</h3>
+        <button type="button" class="btn-close" (click)="closeToolModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>工具コード *</label>
+            <input type="text" [(ngModel)]="toolForm.toolCode" class="form-control" placeholder="例: T-OD-03" />
+          </div>
+          <div class="form-group">
+            <label>工具名称 *</label>
+            <input type="text" [(ngModel)]="toolForm.toolName" class="form-control" placeholder="例: 超硬外径仕上げバイト" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>用途分類</label>
+            <select [(ngModel)]="toolForm.toolCategory" class="form-control">
+              <option value="OD_ROUGH">外径荒削り (OD_ROUGH)</option>
+              <option value="OD_FINISH">外径仕上げ (OD_FINISH)</option>
+              <option value="DRILL">ドリル (DRILL)</option>
+              <option value="BORE">内径ボーリング (BORE)</option>
+              <option value="GROOVE">溝入れ (GROOVE)</option>
+              <option value="THREAD">ねじ切り (THREAD)</option>
+              <option value="CUTOFF">突切り (CUTOFF)</option>
+              <option value="BACK_FINISH">背面仕上げ (BACK_FINISH)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>適合被削材</label>
+            <input type="text" [(ngModel)]="toolForm.materialCompatibility" class="form-control" placeholder="例: 鋼・ステンレス・快削鋼" />
+          </div>
+        </div>
+
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label>刃幅 (mm)</label>
+            <input type="number" [(ngModel)]="toolForm.bladeWidth" class="form-control" step="0.1" placeholder="例: 2.0 (溝/突切)" />
+          </div>
+          <div class="form-group">
+            <label>ノーズR</label>
+            <input type="number" [(ngModel)]="toolForm.noseRadius" class="form-control" step="0.1" placeholder="例: 0.4" />
+          </div>
+          <div class="form-group">
+            <label>最大深さ (mm)</label>
+            <input type="number" [(ngModel)]="toolForm.maxDepth" class="form-control" step="1" placeholder="例: 30 (穴/溝)" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>推奨送り (mm/rev)</label>
+            <input type="number" [(ngModel)]="toolForm.defaultFeed" class="form-control" step="0.01" placeholder="例: 0.08" />
+          </div>
+          <div class="form-group">
+            <label>推奨切削速度 Vc (m/min)</label>
+            <input type="number" [(ngModel)]="toolForm.defaultVc" class="form-control" step="1" placeholder="例: 120" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>備考・特記事項</label>
+          <input type="text" [(ngModel)]="toolForm.notes" class="form-control" placeholder="例: 高圧クーラントノズル付きホルダー専用" />
+        </div>
+
+        <div class="form-group checkbox-row">
+          <label>
+            <input type="checkbox" [(ngModel)]="toolForm.isActive" />
+            この工具を有効化する
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeToolModal()">キャンセル</button>
+        <button type="button" class="btn btn-primary" (click)="handleSaveTool()">
+          {{ editingToolId() !== null ? '更新する' : '登録する' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>

@@ -18,4 +18,9 @@ router.put('/features/:id', (req, res) => {
   featureController.updateFeature(req, res);
 });
 
+// DELETE /api/features/:id (Feature削除)
+router.delete('/features/:id', (req, res) => {
+  featureController.deleteFeature(req, res);
+});
+
 export default router;

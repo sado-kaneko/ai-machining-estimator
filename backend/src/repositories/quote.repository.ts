@@ -8,7 +8,7 @@ export class QuoteRepository {
    */
   async findAll(limit: number = 100): Promise<QuoteRow[]> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, quote_no, customer_name, part_no, part_name, quantity, status, notes, created_at, updated_at FROM quotes ORDER BY id DESC LIMIT ?',
+      'SELECT id, quote_no, customer_name, part_no, part_name, material, quantity, status, notes, created_at, updated_at FROM quotes ORDER BY id DESC LIMIT ?',
       [limit]
     );
     return rows as QuoteRow[];
@@ -19,7 +19,7 @@ export class QuoteRepository {
    */
   async findById(id: number): Promise<QuoteRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, quote_no, customer_name, part_no, part_name, quantity, status, notes, created_at, updated_at FROM quotes WHERE id = ?',
+      'SELECT id, quote_no, customer_name, part_no, part_name, material, quantity, status, notes, created_at, updated_at FROM quotes WHERE id = ?',
       [id]
     );
     if (!rows || rows.length === 0) {

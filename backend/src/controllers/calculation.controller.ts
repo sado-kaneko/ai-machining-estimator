@@ -97,7 +97,11 @@ export class CalculationController {
 
       // 共通計算Engine実行
       const maxRpm = req.body?.maxRpm ? Number(req.body.maxRpm) : undefined;
-      const result = await calculationService.calculateCycleTime(quoteId, { maxRpm });
+      const machiningMode = req.body?.machiningMode === 'SEQUENTIAL'
+        ? 'SEQUENTIAL'
+        : (req.body?.machiningMode === 'SIMULTANEOUS' ? 'SIMULTANEOUS' : undefined);
+
+      const result = await calculationService.calculateCycleTime(quoteId, { maxRpm, machiningMode });
       res.status(200).json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';

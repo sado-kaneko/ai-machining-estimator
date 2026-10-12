@@ -9,6 +9,7 @@ export interface CalculationEngineInput {
   machineName: string;
   machineType: string;
   maxRpm: number;
+  machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL';
 }
 
 // 共通計算結果返却インターフェース
@@ -25,6 +26,15 @@ export interface CalculationEngineOutput {
   correctionApplied?: boolean;
   confidenceLevel?: string;
   correctionReason?: string;
+  machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL';
+  frontCuttingTimeSec?: number;
+  backCuttingTimeSec?: number;
+  cutoffCuttingTimeSec?: number;
+  frontTotalTimeSec?: number;
+  backTotalTimeSec?: number;
+  cutoffTotalTimeSec?: number;
+  dominantSide?: 'FRONT' | 'BACK';
+  savedTimeSec?: number;
   operationDetails: AutomaticLatheOperationDto[];
 }
 

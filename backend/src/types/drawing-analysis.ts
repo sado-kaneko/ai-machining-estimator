@@ -63,10 +63,24 @@ export interface DrawingAnalysisDetailDto {
   material: string | null;
   stockDiameter: number | null;
   overallLength: number | null;
+  recommendedMachine?: string | null;
+  machineFeasibilityReason?: string | null;
   createdAt: string;
 }
 
 export function toDrawingAnalysisDetailDto(row: DrawingAnalysisRow): DrawingAnalysisDetailDto {
+  let recommendedMachine: string | null = null;
+  let machineFeasibilityReason: string | null = null;
+  if (row.raw_response) {
+    try {
+      const parsed = JSON.parse(row.raw_response);
+      recommendedMachine = parsed.recommendedMachine || null;
+      machineFeasibilityReason = parsed.machineFeasibilityReason || null;
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     id: Number(row.id),
     drawingId: Number(row.drawing_id),
@@ -75,6 +89,8 @@ export function toDrawingAnalysisDetailDto(row: DrawingAnalysisRow): DrawingAnal
     material: row.material,
     stockDiameter: row.stock_diameter !== null ? Number(row.stock_diameter) : null,
     overallLength: row.overall_length !== null ? Number(row.overall_length) : null,
+    recommendedMachine,
+    machineFeasibilityReason,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   };
 }

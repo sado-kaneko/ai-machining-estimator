@@ -95,6 +95,8 @@ export const DrawingAnalysisSchema = z.object({
   features: z.array(DrawingFeatureSchema),
   tolerances: z.array(ToleranceItemSchema),
   surfaceRequirements: z.array(SurfaceRequirementItemSchema),
+  recommendedMachine: z.string().nullable().optional(),
+  machineFeasibilityReason: z.string().nullable().optional(),
   warnings: z.array(z.string()),
 });
 

@@ -18,7 +18,7 @@ export class DrawingAnalysisService {
   /**
    * PDF図面を画像化し、OpenAI Visionで解析してDBへ保存する
    */
-  async analyzeDrawing(drawingId: number): Promise<DrawingAnalysisDto> {
+  async analyzeDrawing(drawingId: number, signal?: AbortSignal): Promise<DrawingAnalysisDto> {
     // 1. drawing_id から drawings レコードを取得
     const drawing = await drawingRepository.findById(drawingId);
     if (!drawing) {
@@ -28,6 +28,10 @@ export class DrawingAnalysisService {
     // 2. PDF存在確認
     if (!fs.existsSync(drawing.file_path)) {
       throw new Error('PDF_FILE_NOT_FOUND');
+    }
+
+    if (signal?.aborted) {
+      throw new Error('ANALYSIS_ABORTED');
     }
 
     let parsedData: DrawingAnalysisData;
@@ -40,6 +44,9 @@ export class DrawingAnalysisService {
 
       const imageBuffers: Buffer[] = [];
       for await (const pageBuffer of document) {
+        if (signal?.aborted) {
+          throw new Error('ANALYSIS_ABORTED');
+        }
         imageBuffers.push(pageBuffer);
       }
 
@@ -47,11 +54,42 @@ export class DrawingAnalysisService {
         throw new Error('NO_PAGES_FOUND');
       }
 
+      if (signal?.aborted) {
+        throw new Error('ANALYSIS_ABORTED');
+      }
+
+      // 3.5. PDFベクターテキストの直接抽出（OCRブレ・数字読み違いの防止）
+      let pdfExtractedTextSection = '';
+      try {
+        const { extractTextFromPdf } = await import('../utils/pdf-text-extractor');
+        const textResult = await extractTextFromPdf(drawing.file_path);
+        if (textResult.fullText && textResult.fullText.trim().length > 0) {
+          pdfExtractedTextSection = `\n\n【PDF内部から直接抽出された確定テキスト・寸法一覧】\n以下はPDF内部のベクター情報から直接抽出されたテキストです。図面中の寸法値、公差、図番、材質名、注記の照合に最優先で活用し、読み取りの絶対的な根拠としてください。\n---\n${textResult.fullText}\n---`;
+        }
+      } catch (extractErr) {
+        console.warn('PDF vector text extraction skipped:', extractErr);
+      }
+
+      // 3.6. 自社保有加工機一覧（特注オプション・仕様）の動的注入
+      let machineSpecsPromptSection = '';
+      try {
+        const { masterRepository } = await import('../repositories/master.repository');
+        const machines = await masterRepository.getAllMachines(true);
+        if (machines.length > 0) {
+          machineSpecsPromptSection = `\n\n【自社保有加工機一覧（特注オプション・仕様）】\n当社が保有する加工設備の一覧です。図面の素材径、全長、加工工程（背面複合加工、深穴、特殊ミーリングなど）を照合し、加工可能な推奨加工機名(recommendedMachine)およびその判定理由(machineFeasibilityReason)を出力してください。\n`;
+          for (const m of machines) {
+            machineSpecsPromptSection += `- ${m.machineName} (${m.model || m.machineType}): 最大バー材径=φ${m.maxBarDiameter}mm, 最大加工長=${m.maxMachiningLength}mm, 背面サブ主軸=${m.hasSubSpindle ? '有' : '無'}, 工具本数=${m.maxTools}本, 特注仕様・オプション: ${m.specialOptions || '標準仕様'}\n`;
+          }
+        }
+      } catch (mErr) {
+        console.warn('Machine master injection skipped:', mErr);
+      }
+
       // 4. OpenAI Vision API 呼び出し (Structured Outputs)
       const userContent: Array<
         | { type: 'text'; text: string }
         | { type: 'image_url'; image_url: { url: string; detail?: 'auto' | 'low' | 'high' } }
-      > = [{ type: 'text', text: USER_PROMPT }];
+      > = [{ type: 'text', text: USER_PROMPT + pdfExtractedTextSection + machineSpecsPromptSection }];
 
       for (const buffer of imageBuffers) {
         const base64Image = buffer.toString('base64');
@@ -64,14 +102,17 @@ export class DrawingAnalysisService {
         });
       }
 
-      const response = await openaiClient.chat.completions.parse({
-        model: envConfig.openai.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userContent },
-        ],
-        response_format: zodResponseFormat(DrawingAnalysisSchema, 'drawing_analysis'),
-      });
+      const response = await openaiClient.chat.completions.parse(
+        {
+          model: envConfig.openai.model,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userContent },
+          ],
+          response_format: zodResponseFormat(DrawingAnalysisSchema, 'drawing_analysis'),
+        },
+        { signal }
+      );
 
       const message = response.choices[0]?.message;
       if (!message) {
@@ -95,6 +136,13 @@ export class DrawingAnalysisService {
       parsedData = validationResult.data;
       rawResponseContent = message.content || JSON.stringify(parsedData);
     } catch (err: unknown) {
+      if (
+        (err instanceof Error && (err.name === 'AbortError' || err.message === 'ANALYSIS_ABORTED')) ||
+        signal?.aborted
+      ) {
+        console.log(`[AI Analysis] Safely aborted for drawingId=${drawingId}`);
+        throw new Error('ANALYSIS_ABORTED');
+      }
       // OpenAI関連エラーや画像変換エラーの際は内部情報を伏せてANALYSIS_FAILEDとする
       console.error('Drawing analysis failed with error:', err instanceof Error ? err.message : String(err));
       throw new Error('ANALYSIS_FAILED');

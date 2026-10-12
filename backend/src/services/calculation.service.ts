@@ -26,6 +26,11 @@ export class CalculationService {
       maker: r.maker,
       model: r.model,
       maxRpm: Number(r.max_rpm),
+      maxBarDiameter: r.max_bar_diameter !== null && r.max_bar_diameter !== undefined ? Number(r.max_bar_diameter) : null,
+      maxMachiningLength: r.max_machining_length !== null && r.max_machining_length !== undefined ? Number(r.max_machining_length) : null,
+      hasSubSpindle: r.has_sub_spindle !== null && r.has_sub_spindle !== undefined ? Boolean(r.has_sub_spindle) : null,
+      maxTools: r.max_tools !== null && r.max_tools !== undefined ? Number(r.max_tools) : null,
+      specialOptions: r.special_options || null,
     }));
   }
 
@@ -53,6 +58,11 @@ export class CalculationService {
       maker: machine.maker,
       model: machine.model,
       maxRpm: Number(machine.max_rpm),
+      maxBarDiameter: machine.max_bar_diameter !== null && machine.max_bar_diameter !== undefined ? Number(machine.max_bar_diameter) : null,
+      maxMachiningLength: machine.max_machining_length !== null && machine.max_machining_length !== undefined ? Number(machine.max_machining_length) : null,
+      hasSubSpindle: machine.has_sub_spindle !== null && machine.has_sub_spindle !== undefined ? Boolean(machine.has_sub_spindle) : null,
+      maxTools: machine.max_tools !== null && machine.max_tools !== undefined ? Number(machine.max_tools) : null,
+      specialOptions: machine.special_options || null,
     };
   }
 
@@ -76,6 +86,11 @@ export class CalculationService {
       maker: machine.maker,
       model: machine.model,
       maxRpm: Number(machine.max_rpm),
+      maxBarDiameter: machine.max_bar_diameter !== null && machine.max_bar_diameter !== undefined ? Number(machine.max_bar_diameter) : null,
+      maxMachiningLength: machine.max_machining_length !== null && machine.max_machining_length !== undefined ? Number(machine.max_machining_length) : null,
+      hasSubSpindle: machine.has_sub_spindle !== null && machine.has_sub_spindle !== undefined ? Boolean(machine.has_sub_spindle) : null,
+      maxTools: machine.max_tools !== null && machine.max_tools !== undefined ? Number(machine.max_tools) : null,
+      specialOptions: machine.special_options || null,
     };
   }
 
@@ -85,7 +100,7 @@ export class CalculationService {
    */
   async calculateCycleTime(
     quoteId: number,
-    options?: { maxRpm?: number }
+    options?: { maxRpm?: number; machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL' }
   ): Promise<LatheCycleTimeSummaryDto | CycleTimeResultDto> {
     // 1. 案件取得
     const quote = await quoteRepository.findById(quoteId);
@@ -135,6 +150,7 @@ export class CalculationService {
       machineName: machine ? machine.machine_name : 'Cincom L20',
       machineType: machine ? machine.machine_type : 'NC_AUTOMATIC_LATHE',
       maxRpm: effectiveMaxRpm,
+      machiningMode: options?.machiningMode,
     });
 
     // 6. cycle_time_results テーブルへ保存 (既存結果は上書き)
@@ -171,6 +187,15 @@ export class CalculationService {
       correctionApplied: result.correctionApplied,
       confidenceLevel: result.confidenceLevel,
       correctionReason: result.correctionReason,
+      machiningMode: result.machiningMode,
+      frontCuttingTimeSec: result.frontCuttingTimeSec,
+      backCuttingTimeSec: result.backCuttingTimeSec,
+      cutoffCuttingTimeSec: result.cutoffCuttingTimeSec,
+      frontTotalTimeSec: result.frontTotalTimeSec,
+      backTotalTimeSec: result.backTotalTimeSec,
+      cutoffTotalTimeSec: result.cutoffTotalTimeSec,
+      dominantSide: result.dominantSide,
+      savedTimeSec: result.savedTimeSec,
       operations: result.operationDetails,
     };
   }

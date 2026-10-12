@@ -105,16 +105,9 @@ export class ActualCycleTimeController {
         });
         return;
       }
-      if (message === 'ESTIMATE_NOT_FOUND') {
-        res.status(404).json({
-          error: { code: 'ESTIMATE_NOT_FOUND', message: '見積サイクルタイムがまだ計算されていません。' },
-        });
-        return;
-      }
-      if (message === 'NO_ACTUAL_DATA') {
-        res.status(404).json({
-          error: { code: 'NO_ACTUAL_DATA', message: '登録されている加工実績がありません。' },
-        });
+      if (message === 'ESTIMATE_NOT_FOUND' || message === 'NO_ACTUAL_DATA') {
+        // 見積CT未計算、または加工実績未登録の状態は正常フローであるため、比較データなし(null)としてHTTP 200を返却
+        res.status(200).json(null);
         return;
       }
       res.status(500).json({

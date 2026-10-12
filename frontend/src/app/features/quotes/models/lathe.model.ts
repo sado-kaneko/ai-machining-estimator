@@ -4,6 +4,7 @@ export interface AutomaticLatheOperation {
   featureId: number | null;
   sequenceNo: number;
   processId: number;
+  machiningSide: 'FRONT' | 'CUTOFF' | 'BACK';
   processName: string;
   processCategory: string;
   machiningLength: number;
@@ -38,6 +39,16 @@ export interface LatheCycleTimeSummary {
   correctionApplied?: boolean;
   confidenceLevel?: string;
   correctionReason?: string;
+  // PHASE19: 正面・背面・同時加工情報
+  machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL';
+  frontCuttingTimeSec?: number;
+  backCuttingTimeSec?: number;
+  cutoffCuttingTimeSec?: number;
+  frontTotalTimeSec?: number;
+  backTotalTimeSec?: number;
+  cutoffTotalTimeSec?: number;
+  dominantSide?: 'FRONT' | 'BACK';
+  savedTimeSec?: number;
   operations: AutomaticLatheOperation[];
 }
 

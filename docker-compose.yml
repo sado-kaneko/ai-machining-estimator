@@ -1,0 +1,38 @@
+name: ai_cycletime_estimator
+
+services:
+  backend:
+    container_name: ai_cycletime_estimator-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3105:3100"
+    volumes:
+      - ./storage/drawings:/app/storage/drawings
+      - ./backend/.env:/app/.env:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=3100
+      - FRONTEND_ORIGIN=http://localhost:8085
+      - UPLOAD_DIR=/app/storage/drawings
+    networks:
+      - estimator_net
+
+  frontend:
+    container_name: ai_cycletime_estimator-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8085:80"
+    depends_on:
+      - backend
+    networks:
+      - estimator_net
+
+networks:
+  estimator_net:
+    driver: bridge

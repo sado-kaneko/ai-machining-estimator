@@ -34,17 +34,17 @@ export async function runPhase09Migration(): Promise<void> {
   `);
   console.log('quote_machine_selection table ready');
 
-  // NLX2500 の登録（PHASE09仕様: 登録のみ）
-  const [nlx] = await pool.query<RowDataPacket[]>(
-    "SELECT id FROM machine_master WHERE machine_name = 'NLX2500'"
-  );
-  if (nlx.length === 0) {
-    await pool.query(
-      'INSERT INTO machine_master (machine_type, calculation_engine_type, machine_name, maker, model, max_rpm) VALUES (?, ?, ?, ?, ?, ?)',
-      ['NC_LATHE', 'NC_LATHE', 'NLX2500', 'DMG MORI', 'NLX 2500 | 700', 4000]
-    );
-    console.log('Seeded NLX2500 (NC_LATHE)');
-  }
+  // ※ NLX2500はNC自動旋盤仕様に限定するため登録を停止
+  // const [nlx] = await pool.query<RowDataPacket[]>(
+  //   "SELECT id FROM machine_master WHERE machine_name = 'NLX2500'"
+  // );
+  // if (nlx.length === 0) {
+  //   await pool.query(
+  //     'INSERT INTO machine_master (machine_type, calculation_engine_type, machine_name, maker, model, max_rpm) VALUES (?, ?, ?, ?, ?, ?)',
+  //     ['NC_LATHE', 'NC_LATHE', 'NLX2500', 'DMG MORI', 'NLX 2500 | 700', 4000]
+  //   );
+  //   console.log('Seeded NLX2500 (NC_LATHE)');
+  // }
 }
 
 if (require.main === module) {

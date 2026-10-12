@@ -18,7 +18,7 @@ export class LatheRepository {
    */
   async findMachineByType(machineType: string): Promise<MachineMasterRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master WHERE machine_type = ? LIMIT 1',
+      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, max_bar_diameter, max_machining_length, has_sub_spindle, max_tools, special_options, created_at, updated_at FROM machine_master WHERE machine_type = ? LIMIT 1',
       [machineType]
     );
     return rows.length > 0 ? (rows[0] as MachineMasterRow) : null;
@@ -26,10 +26,11 @@ export class LatheRepository {
 
   /**
    * 設備マスタ全件取得 (GET /api/machines)
+   * ※ NC自動旋盤 (NC_AUTOMATIC_LATHE) のみを返却
    */
   async findAllMachines(): Promise<MachineMasterRow[]> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master ORDER BY id ASC'
+      "SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, max_bar_diameter, max_machining_length, has_sub_spindle, max_tools, special_options, created_at, updated_at FROM machine_master WHERE machine_type = 'NC_AUTOMATIC_LATHE' AND (is_active = 1 OR is_active IS NULL) ORDER BY id ASC"
     );
     return rows as MachineMasterRow[];
   }
@@ -39,7 +40,7 @@ export class LatheRepository {
    */
   async findMachineById(id: number): Promise<MachineMasterRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, created_at, updated_at FROM machine_master WHERE id = ? LIMIT 1',
+      'SELECT id, machine_type, calculation_engine_type, machine_name, maker, model, max_rpm, max_bar_diameter, max_machining_length, has_sub_spindle, max_tools, special_options, created_at, updated_at FROM machine_master WHERE id = ? LIMIT 1',
       [id]
     );
     return rows.length > 0 ? (rows[0] as MachineMasterRow) : null;
@@ -50,7 +51,7 @@ export class LatheRepository {
    */
   async getQuoteSelectedMachine(quoteId: number): Promise<MachineMasterRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT m.id, m.machine_type, m.calculation_engine_type, m.machine_name, m.maker, m.model, m.max_rpm, m.created_at, m.updated_at
+      `SELECT m.id, m.machine_type, m.calculation_engine_type, m.machine_name, m.maker, m.model, m.max_rpm, m.max_bar_diameter, m.max_machining_length, m.has_sub_spindle, m.max_tools, m.special_options, m.created_at, m.updated_at
        FROM quote_machine_selection s
        JOIN machine_master m ON s.machine_id = m.id
        WHERE s.quote_id = ? AND s.selected = 1
@@ -82,7 +83,7 @@ export class LatheRepository {
    */
   async findAllProcesses(): Promise<LatheProcessMasterRow[]> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, process_category, process_name, calculation_type, default_time_sec, enabled, created_at, updated_at FROM lathe_process_master WHERE enabled = 1'
+      'SELECT id, process_category, machining_side, process_name, calculation_type, default_time_sec, enabled, created_at, updated_at FROM lathe_process_master WHERE enabled = 1'
     );
     return rows as LatheProcessMasterRow[];
   }
@@ -92,7 +93,7 @@ export class LatheRepository {
    */
   async findProcessByName(processName: string): Promise<LatheProcessMasterRow | null> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, process_category, process_name, calculation_type, default_time_sec, enabled, created_at, updated_at FROM lathe_process_master WHERE process_name = ? AND enabled = 1 LIMIT 1',
+      'SELECT id, process_category, machining_side, process_name, calculation_type, default_time_sec, enabled, created_at, updated_at FROM lathe_process_master WHERE process_name = ? AND enabled = 1 LIMIT 1',
       [processName]
     );
     return rows.length > 0 ? (rows[0] as LatheProcessMasterRow) : null;
@@ -153,7 +154,7 @@ export class LatheRepository {
    */
   async findOperationsByQuoteId(quoteId: number): Promise<(AutomaticLatheOperationRow & { process_name: string; process_category: string; calculation_type: string })[]> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT o.id, o.quote_id, o.feature_id, o.sequence_no, o.process_id,
+      `SELECT o.id, o.quote_id, o.feature_id, o.sequence_no, o.process_id, o.machining_side,
               o.machining_length, o.diameter, o.depth, o.repeat_count,
               o.feed, o.vc, o.cutting_time_sec, o.non_cutting_time_sec, o.total_time_sec,
               o.status, o.created_at, o.updated_at,
@@ -176,15 +177,16 @@ export class LatheRepository {
     for (const input of inputs) {
       await pool.query(
         `INSERT INTO automatic_lathe_operations (
-           quote_id, feature_id, sequence_no, process_id,
+           quote_id, feature_id, sequence_no, process_id, machining_side,
            machining_length, diameter, depth, repeat_count,
            feed, vc, cutting_time_sec, non_cutting_time_sec, total_time_sec, status
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.quoteId,
           input.featureId,
           input.sequenceNo,
           input.processId,
+          input.machiningSide || 'FRONT',
           input.machiningLength,
           input.diameter,
           input.depth,
@@ -256,6 +258,25 @@ export class LatheRepository {
   }
 
   /**
+   * 単一工程の取得
+   */
+  async findOperationById(id: number): Promise<(AutomaticLatheOperationRow & { process_name: string; process_category: string; calculation_type: string }) | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT o.id, o.quote_id, o.feature_id, o.sequence_no, o.process_id, o.machining_side,
+              o.machining_length, o.diameter, o.depth, o.repeat_count,
+              o.feed, o.vc, o.cutting_time_sec, o.non_cutting_time_sec, o.total_time_sec,
+              o.status, o.created_at, o.updated_at,
+              p.process_name, p.process_category, p.calculation_type
+       FROM automatic_lathe_operations o
+       JOIN lathe_process_master p ON o.process_id = p.id
+       WHERE o.id = ?
+       LIMIT 1`,
+      [id]
+    );
+    return rows.length > 0 ? (rows[0] as any) : null;
+  }
+
+  /**
    * 工程全件数カウント（テスト後確認用）
    */
   async count(): Promise<number> {
@@ -263,6 +284,36 @@ export class LatheRepository {
       'SELECT COUNT(*) as count FROM automatic_lathe_operations'
     );
     return Number(rows[0].count);
+  }
+
+  // ==============================================================
+  // PHASE19: 同時加工モード取得・保存
+  // ==============================================================
+
+  /**
+   * 見積案件の加工モード（SIMULTANEOUS: 同時加工 / SEQUENTIAL: 順次加工）を取得
+   */
+  async getMachiningMode(quoteId: number): Promise<'SIMULTANEOUS' | 'SEQUENTIAL'> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT machining_mode FROM quote_machine_selection WHERE quote_id = ? AND selected = 1 LIMIT 1',
+      [quoteId]
+    );
+    if (rows.length > 0 && rows[0].machining_mode) {
+      return rows[0].machining_mode as 'SIMULTANEOUS' | 'SEQUENTIAL';
+    }
+    return 'SIMULTANEOUS'; // デフォルトは同時加工（NC自動旋盤の実効性能を最大活用）
+  }
+
+  /**
+   * 見積案件の加工モード（SIMULTANEOUS / SEQUENTIAL）を保存
+   */
+  async saveMachiningMode(quoteId: number, mode: 'SIMULTANEOUS' | 'SEQUENTIAL'): Promise<void> {
+    await pool.query(
+      `UPDATE quote_machine_selection 
+       SET machining_mode = ?, updated_at = NOW() 
+       WHERE quote_id = ? AND selected = 1`,
+      [mode, quoteId]
+    );
   }
 
   // ==============================================================

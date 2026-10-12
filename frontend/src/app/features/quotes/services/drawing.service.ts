@@ -52,4 +52,14 @@ export class DrawingService {
       `${this.baseUrl}/drawings/${drawingId}/analysis`
     );
   }
+
+  /**
+   * 図面AI解析の中断・安全停止 (POST /api/drawings/:id/cancel-analysis)
+   */
+  cancelAnalysis(drawingId: number): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(
+      `${this.baseUrl}/drawings/${drawingId}/cancel-analysis`,
+      {}
+    );
+  }
 }

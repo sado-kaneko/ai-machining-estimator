@@ -6,6 +6,7 @@ export interface OperationRow {
   standard_condition_id: number | null;
   sequence_no: number;
   operation_type: string;
+  machining_side?: string;
   mode: string;
   tool_category: string;
   work_diameter: number;
@@ -33,6 +34,7 @@ export interface CreateOperationInput {
   featureId: number | null;
   sequenceNo: number;
   operationType: string;
+  machiningSide?: 'FRONT' | 'CUTOFF' | 'BACK';
   description: string;
   machineType: string;
   status: 'GENERATED' | 'CONFIRMED' | 'MANUAL';
@@ -43,6 +45,7 @@ export interface CreateOperationInput {
 // レコード更新用入力型
 export interface UpdateOperationInput {
   sequenceNo?: number;
+  machiningSide?: 'FRONT' | 'CUTOFF' | 'BACK';
   description?: string;
   machineType?: string;
   status?: 'GENERATED' | 'CONFIRMED' | 'MANUAL';
@@ -55,6 +58,7 @@ export interface OperationDto {
   featureId: number | null;
   sequenceNo: number;
   operationType: string;
+  machiningSide: 'FRONT' | 'CUTOFF' | 'BACK';
   description: string;
   machineType: string;
   status: string;
@@ -82,6 +86,7 @@ export function toOperationDto(row: OperationRow): OperationDto {
     featureId: row.feature_id !== null ? Number(row.feature_id) : null,
     sequenceNo: Number(row.sequence_no),
     operationType: row.operation_type,
+    machiningSide: (row.machining_side as 'FRONT' | 'CUTOFF' | 'BACK') || 'FRONT',
     description: row.mode || row.operation_type,
     machineType: row.tool_category,
     status: row.condition_source,

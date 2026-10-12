@@ -39,4 +39,16 @@ router.post(
   latheController.regenerateOperations.bind(latheController)
 );
 
+// 単一工程の切削条件（回転数・送り）個別更新: PUT /api/quotes/:id/lathe-operations/:opId
+router.put(
+  '/quotes/:id/lathe-operations/:opId',
+  latheController.updateOperationCondition.bind(latheController)
+);
+
+// PHASE19: 同時加工 / 順次加工 モード切替: PUT /api/quotes/:id/lathe-machining-mode
+router.put(
+  '/quotes/:id/lathe-machining-mode',
+  latheController.updateMachiningMode.bind(latheController)
+);
+
 export default router;

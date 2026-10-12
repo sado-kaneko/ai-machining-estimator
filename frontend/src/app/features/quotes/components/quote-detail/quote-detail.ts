@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { QuoteService } from '../../services/quote.service';
 import { DrawingService } from '../../services/drawing.service';
 import { FeatureService } from '../../services/feature.service';
@@ -51,6 +52,21 @@ import { SimilarQuoteResult } from '../../../../core/models/similarity.model';
 
 import { RouterLink } from '@angular/router';
 
+export interface BalloonPin {
+  id: string;
+  index: number;
+  sequenceNo: number;
+  label: string;
+  name: string;
+  side: string;
+  x: number;
+  y: number;
+  isSelected: boolean;
+  dimText: string;
+  cuttingLength: number | null;
+  machineType: string | null;
+}
+
 @Component({
   selector: 'app-quote-detail',
   standalone: true,
@@ -58,7 +74,7 @@ import { RouterLink } from '@angular/router';
   templateUrl: './quote-detail.html',
   styleUrl: './quote-detail.scss',
 })
-export class QuoteDetailComponent implements OnInit {
+export class QuoteDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly quoteService = inject(QuoteService);
@@ -132,8 +148,10 @@ export class QuoteDetailComponent implements OnInit {
   selectedMachine = signal<Machine | null>(null);
   isChangingMachine = signal<boolean>(false);
   machineMessage = signal<string | null>(null);
-  // 人による主軸上限RPMの介入設定
-  userMaxRpm = signal<number | null>(null);
+  // 人による主軸上限RPMの介入設定 (初期表示は一律6000rpm)
+  userMaxRpm = signal<number | null>(6000);
+  // PHASE19: 正面・背面 同時加工モード ('SIMULTANEOUS': 同時・並行加工 / 'SEQUENTIAL': 順次加工)
+  machiningMode = signal<'SIMULTANEOUS' | 'SEQUENTIAL'>('SIMULTANEOUS');
 
   // 実績比較タブの表示制御（現在は非表示、将来の拡張用に保持）
   showComparisonTab = signal<boolean>(false);
@@ -142,6 +160,223 @@ export class QuoteDetailComponent implements OnInit {
   // 'overview' (STEP1: 図面・AI解析) | 'review' (STEP2: 加工内容確認) | 'calculation' (STEP3: 設備・CT計算) | 'comparison' (STEP4: 実績比較/非表示) | 'complete' (STEP4/5: 見積確定・根拠)
   activeTab = signal<'overview' | 'review' | 'calculation' | 'comparison' | 'complete'>('overview');
   reviewSubTab = signal<'features' | 'operations'>('features');
+  // STEP 2でのAI読取内容（加工部位・工程候補）の変更検知フラグ
+  isStep2Modified = signal<boolean>(false);
+
+  // ==============================================================
+  // STEP 2: 実図面バルーン表示ビューア関連シグナル
+  // ==============================================================
+  selectedOperationIndex = signal<number>(0);
+  selectedFeatureIndex = signal<number>(0);
+  balloonZoom = signal<number>(1.0);
+  panOffsetX = signal<number>(0);
+  panOffsetY = signal<number>(0);
+  isDrawingFullscreen = signal<boolean>(false);
+  hoveredBalloonId = signal<string | null>(null);
+
+  // ピンのドラッグ＆ドロップ手動調整座標 (キー: 'op-1', 'feat-2' など)
+  customPinPositions = signal<Record<string, { x: number; y: number }>>({});
+
+  // 選択中または最新の図面画像URL
+  activeDrawingId = computed(() => {
+    const list = this.drawings();
+    return list.length > 0 ? list[0].id : null;
+  });
+  drawingImageUrl = computed(() => {
+    const id = this.activeDrawingId();
+    return id ? `/api/drawings/${id}/image` : null;
+  });
+
+  // 現在アクティブな工程
+  activeOperation = computed(() => {
+    const ops = this.operations();
+    const idx = this.selectedOperationIndex();
+    if (ops.length > 0 && idx >= 0 && idx < ops.length) {
+      return ops[idx];
+    }
+    return ops.length > 0 ? ops[0] : null;
+  });
+
+  // 現在アクティブな加工部位
+  activeFeature = computed(() => {
+    const feats = this.features();
+    const idx = this.selectedFeatureIndex();
+    if (feats.length > 0 && idx >= 0 && idx < feats.length) {
+      return feats[idx];
+    }
+    return feats.length > 0 ? feats[0] : null;
+  });
+
+  // 現在アクティブな工程に対応するFeature（寸法参照用）
+  activeFeatureForOperation = computed(() => {
+    const op = this.activeOperation();
+    if (!op || !op.featureId) return null;
+    return this.features().find(f => f.id === op.featureId) || null;
+  });
+
+  // 初心者・営業向けやさしい解説ガイド
+  activeOperationGuide = computed(() => {
+    const op = this.activeOperation();
+    const feat = this.activeFeatureForOperation();
+    return op ? this.getOperationGuide(op, feat) : null;
+  });
+
+  // 表示中のバルーンピン一覧（サブタブに応じて工程または部位に切り替え）
+  activeBalloonPins = computed<BalloonPin[]>(() => {
+    const isOps = this.reviewSubTab() === 'operations';
+    const custom = this.customPinPositions();
+
+    if (isOps) {
+      const ops = this.operations();
+      const feats = this.features();
+      return ops.map((op, idx) => {
+        const pinKey = `op-${op.id}`;
+        const side = op.machiningSide || 'FRONT';
+        let defaultX = 25;
+        let defaultY = 30;
+
+        // 加工面・種類に応じた自然な図面初期配置（ワーク輪郭に沿った分散）
+        if (side === 'CUTOFF' || op.operationType === 'CUTOFF') {
+          defaultX = 72;
+          defaultY = 32;
+        } else if (side === 'BACK' || op.operationType.includes('BACK')) {
+          defaultX = 85;
+          defaultY = 48 + (idx % 2) * 20;
+        } else if (op.operationType === 'DRILLING' || op.operationType === 'DRILL' || op.operationType === 'BORE') {
+          defaultX = 35 + (idx % 3) * 12;
+          defaultY = 50;
+        } else if (op.operationType === 'GROOVING' || op.operationType === 'GROOVE') {
+          defaultX = 40 + (idx % 3) * 15;
+          defaultY = 65;
+        } else if (op.operationType === 'THREADING' || op.operationType === 'THREAD') {
+          defaultX = 65;
+          defaultY = 25;
+        } else {
+          // 外径・面取りなど
+          defaultX = 20 + ((idx * 8.5) % 55);
+          defaultY = 22 + ((idx * 6) % 25);
+        }
+
+        const pos = custom[pinKey] || { x: defaultX, y: defaultY };
+        const isSelected = this.selectedOperationIndex() === idx;
+
+        // 対応する加工部位寸法
+        const matchedFeat = op.featureId ? feats.find(f => f.id === op.featureId) : null;
+        let dimText = '';
+        if (matchedFeat) {
+          if (matchedFeat.diameter !== null) dimText += `φ${matchedFeat.diameter}`;
+          if (matchedFeat.length !== null) dimText += `×L${matchedFeat.length}`;
+          if (matchedFeat.depth !== null) dimText += `×深${matchedFeat.depth}`;
+        }
+        if (!dimText && op.cuttingLength) {
+          dimText = `長/深: ${op.cuttingLength}mm`;
+        }
+
+        return {
+          id: pinKey,
+          index: idx,
+          sequenceNo: op.sequenceNo,
+          label: this.getOperationTypeLabel(op.operationType),
+          name: op.description || this.getOperationTypeLabel(op.operationType),
+          side,
+          x: pos.x,
+          y: pos.y,
+          isSelected,
+          dimText: dimText || '-',
+          cuttingLength: op.cuttingLength,
+          machineType: op.machineType,
+        };
+      });
+    } else {
+      // 加工部位 (Features)
+      const feats = this.features();
+      return feats.map((feat, idx) => {
+        const pinKey = `feat-${feat.id}`;
+        let defaultX = 20 + ((idx * 7.5) % 60);
+        let defaultY = 25 + ((idx * 8) % 50);
+
+        if (feat.featureType === 'ID' || feat.featureType === 'DRILL' || feat.featureType === 'BORE') {
+          defaultY = 48 + (idx % 2) * 8;
+        } else if (feat.featureType === 'GROOVE') {
+          defaultY = 62;
+        }
+
+        const pos = custom[pinKey] || { x: defaultX, y: defaultY };
+        const isSelected = this.selectedFeatureIndex() === idx;
+
+        let dim = '';
+        if (feat.diameter !== null) dim += `φ${feat.diameter}`;
+        if (feat.length !== null) dim += `×L${feat.length}`;
+        if (feat.depth !== null) dim += `×深${feat.depth}`;
+
+        return {
+          id: pinKey,
+          index: idx,
+          sequenceNo: feat.sequenceNo,
+          label: this.getFeatureTypeLabel(feat.featureType),
+          name: feat.description || this.getFeatureTypeLabel(feat.featureType),
+          side: 'FRONT',
+          x: pos.x,
+          y: pos.y,
+          isSelected,
+          dimText: dim || '-',
+          cuttingLength: null,
+          machineType: null,
+        };
+      });
+    }
+  });
+
+  /**
+   * ステップタブ切り替え & 前工程の自動パイプライン実行
+   * （極力人の介入を避け、次のステップに進むと自動で加工部位や工程候補が生成される）
+   */
+  setTab(tab: 'overview' | 'review' | 'calculation' | 'comparison' | 'complete'): void {
+    this.activeTab.set(tab);
+
+    const q = this.quote();
+    const analysis = this.activeAnalysis();
+
+    if (tab === 'review') {
+      // STEP 2 に進んだ時:
+      // 1. 加工部位(Features)が未生成で解析データがある場合、自動生成
+      if (this.features().length === 0 && analysis) {
+        this.generateFeatures(analysis.id);
+      }
+      // 2. 加工工程候補(Operations)が未生成の場合、自動生成
+      if (this.operations().length === 0 && q) {
+        this.executeGenerateOperations(q.id, false);
+      }
+    } else if (tab === 'calculation') {
+      // STEP 3 に進んだ時:
+      // 1. 加工可能設備（特注機オプション考慮）の自動選定
+      this.autoSelectOptimalMachine();
+      // 2. 加工工程候補(Operations)が未生成なら自動生成
+      if (this.operations().length === 0 && q) {
+        this.executeGenerateOperations(q.id, false);
+      }
+      // 3. STEP 2で変更があった場合、または自動旋盤工程が未生成の場合、自動で工程再構築＆計算最新化
+      if (q && (this.latheOperations().length === 0 || this.isStep2Modified() || this.isLatheConditionDirty())) {
+        this.executeAutoRegenerateLathe(q.id);
+      }
+    } else if (tab === 'complete') {
+      // 見積確定・根拠タブに進んだ時:
+      if (q) {
+        this.loadQuoteBasis(q.id);
+      }
+    }
+  }
+
+  /**
+   * STEP 2 内のサブタブ切り替え（未生成なら自動生成）
+   */
+  setReviewSubTab(subTab: 'features' | 'operations'): void {
+    this.reviewSubTab.set(subTab);
+    const q = this.quote();
+    if (subTab === 'operations' && this.operations().length === 0 && q) {
+      this.executeGenerateOperations(q.id, false);
+    }
+  }
 
   // PHASE17: 見積確定・根拠・履歴管理シグナル
   quoteResult = signal<QuoteResult | null>(null);
@@ -162,12 +397,19 @@ export class QuoteDetailComponent implements OnInit {
   /**
    * 各自動旋盤の最大加工径（バー材能力）
    */
-  getMachineMaxDiameter(machineName: string): number {
-    const name = machineName.toUpperCase();
+  getMachineMaxDiameter(mOrName: Machine | string | null | undefined): number {
+    if (!mOrName) return 20;
+    if (typeof mOrName === 'object') {
+      if (mOrName.maxBarDiameter && mOrName.maxBarDiameter > 0) {
+        return Number(mOrName.maxBarDiameter);
+      }
+      return this.getMachineMaxDiameter(mOrName.machineName);
+    }
+    const name = String(mOrName).toUpperCase();
     if (name.includes('M16')) return 16;
     if (name.includes('L20') || name.includes('M20')) return 20;
     if (name.includes('M32') || name.includes('L32')) return 32;
-    return 366; // 汎用NC旋盤
+    return 32; // NC自動旋盤 (Cincom系列)
   }
 
   /**
@@ -190,7 +432,7 @@ export class QuoteDetailComponent implements OnInit {
   isMachineOverCapacity(m: Machine): boolean {
     const stockDia = this.getEffectiveStockDiameter();
     if (!stockDia || stockDia <= 0) return false;
-    const maxDia = this.getMachineMaxDiameter(m.machineName);
+    const maxDia = this.getMachineMaxDiameter(m);
     return stockDia > maxDia;
   }
 
@@ -201,6 +443,76 @@ export class QuoteDetailComponent implements OnInit {
     const m = this.selectedMachine();
     if (!m) return false;
     return this.isMachineOverCapacity(m);
+  }
+
+  /**
+   * 加工可能設備（特注機オプション考慮）の自動選定
+   */
+  autoSelectOptimalMachine(force = false): void {
+    const machineList = this.machines();
+    if (machineList.length === 0) return;
+
+    const stockDia = this.getEffectiveStockDiameter();
+    const analysis = this.activeAnalysis();
+    const ops = this.operations();
+    const hasBackMachining = ops.some(
+      (o) => o.machiningSide === 'BACK' || (o.operationType && o.operationType.includes('BACK'))
+    );
+
+    // 1. AI解析による推奨設備（特注オプション考慮済）が指定されている場合を最優先照合
+    if (analysis?.recommendedMachine) {
+      const rec = analysis.recommendedMachine.trim().toLowerCase();
+      const aiMatched = machineList.find(
+        (m) =>
+          m.machineName.toLowerCase().includes(rec) ||
+          (m.model && m.model.toLowerCase().includes(rec)) ||
+          rec.includes(m.machineName.toLowerCase())
+      );
+      if (aiMatched) {
+        if (this.selectedMachineId() !== aiMatched.id || force) {
+          this.changeMachine(aiMatched.id);
+        }
+        return;
+      }
+    }
+
+    // 2. スペック照合による適合設備の絞り込み
+    const eligible = machineList.filter((m) => {
+      // 素材径が最大バー材径以下か
+      const maxDia = this.getMachineMaxDiameter(m);
+      if (stockDia > 0 && stockDia > maxDia) {
+        return false;
+      }
+      // 背面加工がある場合、サブスピンドルを備えているか
+      if (hasBackMachining && m.hasSubSpindle === false) {
+        return false;
+      }
+      return true;
+    });
+
+    if (eligible.length > 0) {
+      // 適合設備の中から、素材径に対して最も過不足のない最適な加工機を選択（オーバースペック防止）
+      eligible.sort((a, b) => {
+        const diaA = this.getMachineMaxDiameter(a);
+        const diaB = this.getMachineMaxDiameter(b);
+        return diaA - diaB;
+      });
+      const best = eligible[0];
+      if (this.selectedMachineId() !== best.id || force) {
+        this.changeMachine(best.id);
+      }
+    } else {
+      // 全て能力オーバー等の場合は最大能力を持つ設備を選択
+      const sortedByMax = [...machineList].sort((a, b) => {
+        const diaA = this.getMachineMaxDiameter(a);
+        const diaB = this.getMachineMaxDiameter(b);
+        return diaB - diaA;
+      });
+      const fallback = sortedByMax[0];
+      if (this.selectedMachineId() !== fallback.id || force) {
+        this.changeMachine(fallback.id);
+      }
+    }
   }
 
   /**
@@ -223,7 +535,7 @@ export class QuoteDetailComponent implements OnInit {
     const effectiveStockDia = this.getEffectiveStockDiameter();
     const stockDiaText = effectiveStockDia > 0 ? `${effectiveStockDia}mm` : '完成寸法より補完';
     const machineName = m?.machineName || ct.machineName || 'Citizen Cincom L20';
-    const effectiveRpm = this.userMaxRpm() || m?.maxRpm || 10000;
+    const effectiveRpm = this.userMaxRpm() || 6000;
     const totalSec = ct.totalCycleTimeSec;
     const lotTotalMin = (ct.totalLotTimeSec / 60).toFixed(1);
     const cuttingSec = ct.cuttingTimeSec;
@@ -254,7 +566,37 @@ export class QuoteDetailComponent implements OnInit {
     text += `素材径 φ${stockDiaText} は本設備のバー材許容加工能力（最大把握径 φ${this.getMachineMaxDiameter(machineName)}mm）に合致しており、機械干渉なく高剛性な連続バー材加工が成立します。\n`;
     text += `また、主軸回転数は安全余裕およびワーク把握バランスを考慮し、上限設定「${effectiveRpm} rpm」を基準として各工程の切削条件（切削速度Vcおよび送りF）に制限を適用しています。\n\n`;
 
-    text += `■ 3. 切削時間の積算根拠（粗加工＋仕上げ加工の2パス構成）\n`;
+    text += `■ 3. 材質特性に応じた切削条件の最適適用\n`;
+    text += `被削材「${materialName}」の物理的被削性に基づき、標準切削条件マスタより安全かつ高効率な切削速度(Vc)・1回転送り(f)・切込み深さ(ap)を自動選定しています。\n`;
+    if (materialName.toUpperCase().includes('SUS') || materialName.includes('ステンレス')) {
+      text += `・ステンレス鋼（難削材）特性: 加工硬化と刃先発熱を抑えるため、切削速度を約70〜110 m/minの低速域に制御し、適正な切込み（ap=1.2mm〜1.5mm）を確保して工具摩耗を低減しています。\n`;
+    } else if (materialName.toUpperCase().includes('A6061') || materialName.toUpperCase().includes('A5052') || materialName.includes('アルミ')) {
+      text += `・アルミニウム合金（軽合金）特性: 優れた熱伝導性と良好な被削性を活かし、切削速度を約250〜350 m/minの超高速域に設定。送り速度・切込み量を高めて高能率加工を実現しています。\n`;
+    } else {
+      text += `・炭素鋼・普通鋼特性: 一般的な旋削基準速度（Vc=140〜160 m/min、f=0.18〜0.22 mm/rev、ap=1.5〜2.0 mm）を採用し、品質・面粗さと工具寿命のバランスを最適化しています。\n`;
+    }
+    text += `\n`;
+
+    text += `■ 4. 正面・背面・同時加工（重畳加工）の工程設計と支配工程\n`;
+    if (ct.machiningMode === 'SIMULTANEOUS' || ct.dominantSide) {
+      const frontSec = ct.frontTotalTimeSec ?? 0;
+      const backSec = ct.backTotalTimeSec ?? 0;
+      const cutoffSec = ct.cutoffTotalTimeSec ?? 0;
+      const dominantText = ct.dominantSide === 'FRONT' ? '正面加工（第1主軸側）' : '背面加工（第2サブ主軸側）';
+      text += `本設備の特徴である2主軸対向制御を活用し、「正面・背面 同時加工（並行/重畳加工）」を採用いたしました。\n`;
+      text += `・正面加工時間（第1主軸）: 計 ${frontSec} 秒\n`;
+      text += `・背面加工時間（第2主軸）: 計 ${backSec} 秒\n`;
+      text += `・突切り・受渡時間: 計 ${cutoffSec} 秒\n`;
+      text += `正面加工と背面加工をサブスピンドル側で並行稼働させるため、加工時間の長い【${dominantText}】が支配工程（ボトルネック時間）としてサイクルタイムに採用されています。\n`;
+      if (ct.savedTimeSec && ct.savedTimeSec > 0) {
+        text += `この同時加工により、単独直列加工と比較して【約 ${ct.savedTimeSec} 秒（短縮率 約${((ct.savedTimeSec / (frontSec + backSec + cutoffSec)) * 100).toFixed(1)}%）】の加工時間短縮を達成しています。\n`;
+      }
+    } else {
+      text += `加工工程は正面加工、突切り、背面加工の順序で順次実行（直列加工）するシーケンスで積算されています。\n`;
+    }
+    text += `\n`;
+
+    text += `■ 5. 切削時間の積算根拠（粗加工＋仕上げ加工の2パス構成）\n`;
     text += `金属加工の実務基準に則り、純切削時間（${cuttingSec} 秒）は単一の一発加工ではなく、確実な寸法精度と指示面粗さを達成する工程分割で算出しています。\n`;
     text += `・外径/内径切削（${turningOps.length}工程）: 素材外径と各仕上がり径の取り代に応じ、切込み深さ(ap)から必要粗加工（荒挽き）パス数を自動算定。さらに仕上げ代（半径0.2mm）に対し、面粗さ基準を満たす低送り（粗加工比約60%送り）での仕上げ挽き1パスおよび戻り早送り時間を厳密に積算しています。\n`;
     if (faceOps.length > 0) {
@@ -268,12 +610,12 @@ export class QuoteDetailComponent implements OnInit {
     }
     text += `\n`;
 
-    text += `■ 4. 非切削時間（機械固定付帯動作）の積算根拠\n`;
+    text += `■ 6. 非切削時間（機械固定付帯動作）の積算根拠\n`;
     text += `非切削時間（${nonCuttingSec} 秒）は、NC自動旋盤の標準動作マスタに基づき算出されています。\n`;
     text += `・工具割出し・アプローチ時間: 各工具ステーション交換時間（約1.5秒）＋切削アプローチ/エスケープ（1.0秒）を全工程分積算。\n`;
     text += `・機械固定サイクル時間: バーフィーダーによる材料送り出し（2.5秒）、製品突っ切りピックアップ・パーツキャッチャー回収（2.0秒）、主軸加減速およびアイドル待機時間（2.0秒）を確実に反映しています。\n\n`;
 
-    text += `■ 5. 実績補正係数と最終予測の妥当性\n`;
+    text += `■ 7. 実績補正係数と最終予測の妥当性\n`;
     if (ct.correctionApplied && ct.correctionFactor) {
       text += `過去に蓄積された同種材質・形状加工実績データとの照合により、承認済み実績補正係数「×${ct.correctionFactor}」（信頼度: ${ct.confidenceLevel || 'NORMAL'} / 判定: ${ct.correctionReason || '実績フィードバック'}）を適用いたしました。\n`;
     } else {
@@ -281,7 +623,7 @@ export class QuoteDetailComponent implements OnInit {
     }
     text += `\n`;
 
-    text += `■ 6. 総合見積結論\n`;
+    text += `■ 8. 総合見積結論\n`;
     text += `以上の加工検証に基づき、製品1個あたりの予測サイクルタイムを「${totalSec} 秒」（約${(totalSec / 60).toFixed(2)}分）、ご指定ロット（${q.quantity} 個）における総加工時間を「${ct.totalLotTimeSec} 秒」（約${lotTotalMin}分）と確定算出いたしました。\n`;
     text += `加工現場のオペレータ作業やNC段取り替え、および初品検査を円滑に進めるための確実な根拠としてご利用いただけます。`;
 
@@ -333,14 +675,29 @@ export class QuoteDetailComponent implements OnInit {
 
   // AI解析・Feature関連シグナル
   selectedDrawingId = signal<number | null>(null);
+  selectedDrawing = computed(() => {
+    const id = this.selectedDrawingId();
+    return id ? (this.drawings().find((d) => d.id === id) || null) : null;
+  });
+  analyzingDrawingId = signal<number | null>(null);
   activeAnalysis = signal<DrawingAnalysis | null>(null);
   features = signal<Feature[]>([]);
   isLoadingAnalysis = signal<boolean>(false);
   isLoadingFeatures = signal<boolean>(false);
   isAnalyzing = signal<boolean>(false);
+  isCancellingAnalysis = signal<boolean>(false);
+  private analyzeSubscription: Subscription | null = null;
   isGeneratingFeatures = signal<boolean>(false);
+  isDeletingFeature = signal<boolean>(false);
   featureErrorMessage = signal<string | null>(null);
   featureSuccessMessage = signal<string | null>(null);
+
+  // STEP3: NC自動旋盤計算条件の変更検知 & 単独回転数・送り個別修正シグナル
+  isLatheConditionDirty = signal<boolean>(false);
+  editingLatheOp = signal<AutomaticLatheOperation | null>(null);
+  editOpFeed = signal<number>(0);
+  editOpRpm = signal<number>(0);
+  isUpdatingOpCondition = signal<boolean>(false);
 
   // Feature編集モーダル用シグナル
   editingFeature = signal<Feature | null>(null);
@@ -436,10 +793,22 @@ export class QuoteDetailComponent implements OnInit {
     });
   }
 
-  selectDrawing(drawingId: number): void {
+  selectDrawing(drawingId: number, force: boolean = false): void {
+    // 既に選択中かつ解析データ取得済みの場合は無駄な再リクエストをスキップしてチラつきを防止
+    if (!force && this.selectedDrawingId() === drawingId && this.activeAnalysis()) {
+      return;
+    }
+
+    const isDifferentDrawing = this.selectedDrawingId() !== drawingId;
     this.selectedDrawingId.set(drawingId);
     this.featureErrorMessage.set(null);
     this.featureSuccessMessage.set(null);
+
+    // 別の図面へ切り替えた場合のみ以前の解析データをクリア
+    if (isDifferentDrawing) {
+      this.activeAnalysis.set(null);
+      this.features.set([]);
+    }
     this.isLoadingAnalysis.set(true);
 
     this.drawingService.getLatestAnalysis(drawingId).subscribe({
@@ -476,12 +845,17 @@ export class QuoteDetailComponent implements OnInit {
 
   runAnalysis(drawingId: number): void {
     this.isAnalyzing.set(true);
+    this.isCancellingAnalysis.set(false);
+    this.analyzingDrawingId.set(drawingId);
+    this.selectedDrawingId.set(drawingId); // 実行対象の図面を選択状態に同期（不要な重複selectDrawing呼び出しを排除）
     this.featureErrorMessage.set(null);
     this.featureSuccessMessage.set(null);
 
-    this.drawingService.analyzeDrawing(drawingId).subscribe({
+    this.analyzeSubscription = this.drawingService.analyzeDrawing(drawingId).subscribe({
       next: (res) => {
         this.isAnalyzing.set(false);
+        this.analyzingDrawingId.set(null);
+        this.analyzeSubscription = null;
         this.featureSuccessMessage.set('AI解析が正常に完了しました。加工部位（形状）を自動抽出しています...');
         // 素材情報の再読み込み (PHASE11)
         if (this.quote()) {
@@ -492,8 +866,54 @@ export class QuoteDetailComponent implements OnInit {
       },
       error: (err) => {
         this.isAnalyzing.set(false);
+        this.analyzingDrawingId.set(null);
+        this.analyzeSubscription = null;
+        if (err?.status === 499 || err?.error?.error?.code === 'ANALYSIS_ABORTED') {
+          this.featureErrorMessage.set('AI図面解析が停止されました。');
+          return;
+        }
         const msg = err?.error?.error?.message || '図面のAI解析に失敗しました。';
         this.featureErrorMessage.set(msg);
+      },
+    });
+  }
+
+  /**
+   * 実行中のAI解析を安全に途中で停止
+   */
+  cancelAnalysis(): void {
+    const drawingId = this.analyzingDrawingId();
+    if (!drawingId) return;
+
+    if (
+      !confirm(
+        '実行中のAI図面解析を停止しますか？\n※安全に処理が中断され、サーバー側のOpenAI API通信も即座に切断されます。'
+      )
+    ) {
+      return;
+    }
+
+    this.isCancellingAnalysis.set(true);
+
+    // クライアント側HTTPリクエストを切断（バックエンドのreq.on("close")を即時発火させOpenAI通信をAbort）
+    if (this.analyzeSubscription) {
+      this.analyzeSubscription.unsubscribe();
+      this.analyzeSubscription = null;
+    }
+
+    // バックエンド側にも明示的に中断APIを送信してサーバーリソースを確実に解放
+    this.drawingService.cancelAnalysis(drawingId).subscribe({
+      next: () => {
+        this.isAnalyzing.set(false);
+        this.analyzingDrawingId.set(null);
+        this.isCancellingAnalysis.set(false);
+        this.featureErrorMessage.set('AI図面解析が停止されました。');
+      },
+      error: () => {
+        this.isAnalyzing.set(false);
+        this.analyzingDrawingId.set(null);
+        this.isCancellingAnalysis.set(false);
+        this.featureErrorMessage.set('AI図面解析が停止されました。');
       },
     });
   }
@@ -508,7 +928,11 @@ export class QuoteDetailComponent implements OnInit {
         this.featureSuccessMessage.set(`加工部位（${res.featureCount}箇所）を抽出・登録しました。`);
         // 解析詳細とFeatureをリロード
         if (this.selectedDrawingId()) {
-          this.selectDrawing(this.selectedDrawingId()!);
+          this.selectDrawing(this.selectedDrawingId()!, true);
+        }
+        // 加工部位の抽出完了に伴い、加工工程候補(Operations)も自動で生成
+        if (this.quote()) {
+          this.executeGenerateOperations(this.quote()!.id, true);
         }
       },
       error: (err) => {
@@ -544,13 +968,54 @@ export class QuoteDetailComponent implements OnInit {
     this.featureService.updateFeature(target.id, this.editForm).subscribe({
       next: (updated) => {
         this.featureSuccessMessage.set(`加工部位 No.${updated.sequenceNo} を更新しました。`);
+        this.isStep2Modified.set(true);
         this.closeEditModal();
         if (this.activeAnalysis()) {
           this.loadFeatures(this.activeAnalysis()!.id);
         }
+        // 加工部位の変更に伴い、加工工程候補も自動同期
+        if (this.quote()) {
+          this.executeGenerateOperations(this.quote()!.id, true);
+        }
       },
       error: (err) => {
         const msg = err?.error?.error?.message || '加工部位の更新に失敗しました。';
+        this.featureErrorMessage.set(msg);
+      },
+    });
+  }
+
+  deleteFeature(feature: Feature): void {
+    const analysis = this.activeAnalysis();
+    if (!analysis) return;
+
+    const typeLabel = this.getFeatureTypeLabel(feature.featureType);
+    if (
+      !confirm(
+        `加工部位 No.${feature.sequenceNo}「${typeLabel}」を削除してもよろしいですか？\n※削除すると、この加工部位に紐づく工程の参照も解除されます。`
+      )
+    ) {
+      return;
+    }
+
+    this.isDeletingFeature.set(true);
+    this.featureErrorMessage.set(null);
+    this.featureSuccessMessage.set(null);
+
+    this.featureService.deleteFeature(feature.id).subscribe({
+      next: () => {
+        this.isDeletingFeature.set(false);
+        this.featureSuccessMessage.set(`加工部位 No.${feature.sequenceNo} を削除しました。`);
+        this.isStep2Modified.set(true);
+        this.loadFeatures(analysis.id);
+        // 加工部位削除に伴い、加工工程候補も自動同期
+        if (this.quote()) {
+          this.executeGenerateOperations(this.quote()!.id, true);
+        }
+      },
+      error: (err) => {
+        this.isDeletingFeature.set(false);
+        const msg = err?.error?.error?.message || '加工部位の削除に失敗しました。';
         this.featureErrorMessage.set(msg);
       },
     });
@@ -649,7 +1114,9 @@ export class QuoteDetailComponent implements OnInit {
     this.isLoadingOperations.set(true);
     this.operationService.getOperations(quoteId).subscribe({
       next: (res) => {
-        this.operations.set(res.items);
+        // 工程順序(sequenceNo)昇順で確実にソートして反映
+        const sorted = (res.items || []).sort((a, b) => a.sequenceNo - b.sequenceNo);
+        this.operations.set(sorted);
         this.isLoadingOperations.set(false);
       },
       error: () => {
@@ -716,9 +1183,20 @@ export class QuoteDetailComponent implements OnInit {
     if (!target || !q) return;
 
     this.operationErrorMessage.set(null);
-    this.operationService.updateOperation(target.id, this.editOperationForm).subscribe({
+
+    // 要件2: 状態は自動で MANUAL (手動) に設定
+    // 要件4: 設備分類は変更不可のため既存の target.machineType を維持
+    const payload = {
+      sequenceNo: Number(this.editOperationForm.sequenceNo),
+      description: this.editOperationForm.description,
+      machineType: target.machineType,
+      status: 'MANUAL' as const,
+    };
+
+    this.operationService.updateOperation(target.id, payload).subscribe({
       next: (updated) => {
-        this.operationSuccessMessage.set(`工程 No.${updated.sequenceNo} を更新しました。`);
+        this.operationSuccessMessage.set(`工程 No.${updated.sequenceNo} を更新しました（順序を自動再配置しました）。`);
+        this.isStep2Modified.set(true);
         this.closeEditOperationModal();
         this.loadOperations(q.id);
       },
@@ -740,6 +1218,7 @@ export class QuoteDetailComponent implements OnInit {
     this.operationService.deleteOperation(opId).subscribe({
       next: () => {
         this.operationSuccessMessage.set('工程を削除しました。');
+        this.isStep2Modified.set(true);
         this.loadOperations(q.id);
       },
       error: () => {
@@ -767,6 +1246,7 @@ export class QuoteDetailComponent implements OnInit {
       next: () => {
         this.operationService.updateOperation(targetOp.id, { sequenceNo: currentSeq }).subscribe({
           next: () => {
+            this.isStep2Modified.set(true);
             this.loadOperations(q.id);
           },
         });
@@ -835,6 +1315,9 @@ export class QuoteDetailComponent implements OnInit {
     this.latheService.getLatheCycleTime(quoteId).subscribe({
       next: (res) => {
         this.latheCycleTime.set(res);
+        if (res.machiningMode) {
+          this.machiningMode.set(res.machiningMode);
+        }
         this.loadCorrectionHistory(quoteId);
       },
       error: () => {
@@ -857,61 +1340,47 @@ export class QuoteDetailComponent implements OnInit {
     });
   }
 
-  handleGenerateLatheOperations(): void {
-    const q = this.quote();
-    if (!q) return;
-
-    if (this.latheOperations().length > 0) {
-      if (!confirm('既にNC自動旋盤工程が存在します。再生成して上書きしてもよろしいですか？')) {
-        return;
-      }
-    }
-
+  /**
+   * NC自動旋盤工程の自動再構築 & サイクルタイム自動計算
+   * （STEP 2変更時や設備変更時、ユーザーのボタン操作不要で自動反映）
+   */
+  executeAutoRegenerateLathe(quoteId: number): void {
     this.isGeneratingLatheOps.set(true);
     this.latheErrorMessage.set(null);
-    this.latheSuccessMessage.set(null);
 
-    this.latheService.generateLatheOperations(q.id, true).subscribe({
+    const opObservable =
+      this.latheOperations().length === 0
+        ? this.latheService.generateLatheOperations(quoteId, true)
+        : this.latheService.regenerateLatheOperations(quoteId);
+
+    opObservable.subscribe({
       next: (res) => {
         this.isGeneratingLatheOps.set(false);
-        this.latheSuccessMessage.set(`NC自動旋盤工程（${res.operationCount}工程）を生成しました。`);
-        this.loadLatheOperations(q.id);
-        this.loadLatheCycleTime(q.id);
+        this.isStep2Modified.set(false);
+        this.isLatheConditionDirty.set(false);
+        this.latheSuccessMessage.set(`最新の加工内容・設備条件に基づきNC自動旋盤工程（${res.operationCount}工程）を自動再構築しました。`);
+        this.loadLatheOperations(quoteId);
+        // 自動でサイクルタイム計算も最新化
+        this.handleCalculateLatheCycleTime(true);
       },
       error: (err) => {
         this.isGeneratingLatheOps.set(false);
-        const msg = err?.error?.error?.message || '自動旋盤工程の生成に失敗しました。';
+        const msg = err?.error?.error?.message || '自動旋盤工程の自動更新に失敗しました。';
         this.latheErrorMessage.set(msg);
       },
     });
   }
 
+  handleGenerateLatheOperations(): void {
+    const q = this.quote();
+    if (!q) return;
+    this.executeAutoRegenerateLathe(q.id);
+  }
+
   handleRegenerateLatheOperations(): void {
     const q = this.quote();
     if (!q) return;
-
-    if (!confirm('最新の工程判断マスタ・素材条件に基づいてNC自動旋盤工程を再構築しますか？')) {
-      return;
-    }
-
-    this.isGeneratingLatheOps.set(true);
-    this.latheErrorMessage.set(null);
-    this.latheSuccessMessage.set(null);
-
-    this.latheService.regenerateLatheOperations(q.id).subscribe({
-      next: (res) => {
-        this.isGeneratingLatheOps.set(false);
-        this.latheSuccessMessage.set(`最新マスタ基準でNC自動旋盤工程（${res.operationCount}工程）を再構築しました。`);
-        this.loadLatheOperations(q.id);
-        // 自動でサイクルタイム計算も再実行して最新化
-        this.handleCalculateLatheCycleTime();
-      },
-      error: (err) => {
-        this.isGeneratingLatheOps.set(false);
-        const msg = err?.error?.error?.message || '自動旋盤工程の再構築に失敗しました。';
-        this.latheErrorMessage.set(msg);
-      },
-    });
+    this.executeAutoRegenerateLathe(q.id);
   }
 
   loadMachinesAndSelection(quoteId: number): void {
@@ -924,18 +1393,19 @@ export class QuoteDetailComponent implements OnInit {
             this.selectedMachineId.set(sel.id);
             const found = res.items.find((m) => m.id === sel.id) || null;
             this.selectedMachine.set(found);
-            if (found && (this.userMaxRpm() === null || this.userMaxRpm() === undefined)) {
-              this.userMaxRpm.set(found.maxRpm || 10000);
+            if (this.userMaxRpm() === null || this.userMaxRpm() === undefined) {
+              this.userMaxRpm.set(6000);
+            }
+            // もし既存選択の設備が素材径に対して能力オーバーであれば自動で最適機へ再選定
+            if (found && this.isMachineOverCapacity(found)) {
+              this.autoSelectOptimalMachine(true);
             }
           },
           error: () => {
-            const def = res.items[0] || null;
-            if (def) {
-              this.selectedMachineId.set(def.id);
-              this.selectedMachine.set(def);
-              if (this.userMaxRpm() === null || this.userMaxRpm() === undefined) {
-                this.userMaxRpm.set(def.maxRpm || 10000);
-              }
+            // 未選択時はAI推奨やワーク寸法・背面加工に基づき最適設備を自動選定
+            this.autoSelectOptimalMachine(true);
+            if (this.userMaxRpm() === null || this.userMaxRpm() === undefined) {
+              this.userMaxRpm.set(6000);
             }
           },
         });
@@ -953,6 +1423,15 @@ export class QuoteDetailComponent implements OnInit {
     this.changeMachine(machineId);
   }
 
+  onUserMaxRpmChange(val: number | null): void {
+    this.userMaxRpm.set(val);
+    const q = this.quote();
+    if (q) {
+      // 主軸上限の変更を自動でNC工程とサイクルタイム計算に即座に反映
+      this.executeAutoRegenerateLathe(q.id);
+    }
+  }
+
   changeMachine(machineId: number): void {
     const q = this.quote();
     if (!q) return;
@@ -966,11 +1445,13 @@ export class QuoteDetailComponent implements OnInit {
         this.selectedMachineId.set(res.id);
         const m = this.machines().find((item) => item.id === res.id) || null;
         this.selectedMachine.set(m);
-        if (m) {
-          this.userMaxRpm.set(m.maxRpm || 10000);
+        if (this.userMaxRpm() === null || this.userMaxRpm() === undefined) {
+          this.userMaxRpm.set(6000);
         }
-        this.machineMessage.set(`使用加工機を「${res.machineName}」に変更しました。`);
-        setTimeout(() => this.machineMessage.set(null), 3000);
+        this.machineMessage.set(`使用加工機を「${res.machineName}」に変更しました。工程および計算を自動更新しました。`);
+        setTimeout(() => this.machineMessage.set(null), 4000);
+        // 加工機変更に伴い、NC工程とサイクルタイム計算を自動で再構築
+        this.executeAutoRegenerateLathe(q.id);
       },
       error: (err) => {
         this.isChangingMachine.set(false);
@@ -980,11 +1461,91 @@ export class QuoteDetailComponent implements OnInit {
     });
   }
 
-  handleCalculateLatheCycleTime(): void {
+  // ==========================================
+  // 工程別加工時間内訳: 切削条件(回転数・送り)個別編集
+  // ==========================================
+
+  openEditLatheOpModal(op: AutomaticLatheOperation): void {
+    this.editingLatheOp.set(op);
+    this.editOpFeed.set(op.feed > 0 ? op.feed : 0.05);
+    this.editOpRpm.set(op.rpm > 0 ? op.rpm : 1000);
+    this.latheErrorMessage.set(null);
+  }
+
+  closeEditLatheOpModal(): void {
+    this.editingLatheOp.set(null);
+  }
+
+  saveLatheOpCondition(): void {
+    const op = this.editingLatheOp();
+    const q = this.quote();
+    if (!op || !q) return;
+
+    const feed = Number(this.editOpFeed());
+    const rpm = Number(this.editOpRpm());
+
+    if (feed <= 0 || rpm <= 0) {
+      alert('回転数および送り量は0より大きい数値を入力してください。');
+      return;
+    }
+
+    this.isUpdatingOpCondition.set(true);
+    this.latheErrorMessage.set(null);
+
+    this.latheService.updateOperationCondition(q.id, op.id, { feed, rpm }).subscribe({
+      next: (summary) => {
+        this.latheCycleTime.set(summary);
+        this.latheOperations.set(summary.operations);
+        this.isUpdatingOpCondition.set(false);
+        this.closeEditLatheOpModal();
+        this.latheSuccessMessage.set(
+          `工程 No.${op.sequenceNo}「${op.processName}」の切削条件（N=${rpm}rpm, F=${feed}mm/rev）を更新し、サイクルタイムを再計算しました。`
+        );
+      },
+      error: (err) => {
+        this.isUpdatingOpCondition.set(false);
+        const msg = err?.error?.error?.message || '工程切削条件の更新に失敗しました。';
+        this.latheErrorMessage.set(msg);
+      },
+    });
+  }
+
+  /**
+   * PHASE19: 正面・背面 同時加工 / 順次加工モード切り替え
+   */
+  setMachiningMode(mode: 'SIMULTANEOUS' | 'SEQUENTIAL'): void {
+    if (this.machiningMode() === mode) return;
+    this.machiningMode.set(mode);
+
     const q = this.quote();
     if (!q) return;
 
-    if (this.isSelectedMachineOverCapacity()) {
+    const maxRpm = this.userMaxRpm() && this.userMaxRpm()! > 0 ? this.userMaxRpm()! : undefined;
+    this.isCalculatingLatheCt.set(true);
+    this.latheErrorMessage.set(null);
+
+    this.latheService.updateMachiningMode(q.id, mode, maxRpm).subscribe({
+      next: (res) => {
+        this.latheCycleTime.set(res);
+        this.isCalculatingLatheCt.set(false);
+        const modeLabel = mode === 'SIMULTANEOUS' ? '⚡ 同時加工（並行/重畳加工）' : '🔄 順次加工（直列加工）';
+        this.latheSuccessMessage.set(`加工方式を「${modeLabel}」に変更し、サイクルタイムを再算出しました。`);
+        this.loadLatheOperations(q.id);
+        this.loadComparison(q.id);
+      },
+      error: (err) => {
+        this.isCalculatingLatheCt.set(false);
+        const msg = err?.error?.error?.message || '加工モードの変更に失敗しました。';
+        this.latheErrorMessage.set(msg);
+      },
+    });
+  }
+
+  handleCalculateLatheCycleTime(auto: boolean = false): void {
+    const q = this.quote();
+    if (!q) return;
+
+    if (!auto && this.isSelectedMachineOverCapacity()) {
       const stockDia = this.getEffectiveStockDiameter();
       const mName = this.selectedMachine()?.machineName || '';
       if (!confirm(`【警告】素材径 φ${stockDia}mm に対し、選択設備「${mName}」の最大加工径を超過しています。\n加工不可の恐れがありますが、このまま計算を実行しますか？`)) {
@@ -997,11 +1558,15 @@ export class QuoteDetailComponent implements OnInit {
     this.latheSuccessMessage.set(null);
 
     const maxRpm = this.userMaxRpm() && this.userMaxRpm()! > 0 ? this.userMaxRpm()! : undefined;
+    const mode = this.machiningMode();
 
-    // PHASE09: 共通計算基盤 (POST /api/quotes/:id/cycle-time/calculate) 経由で実行
-    this.calculationService.calculateCycleTime(q.id, { maxRpm }).subscribe({
+    // PHASE09 & PHASE19: 共通計算基盤経由でモードを指定して実行
+    this.calculationService.calculateCycleTime(q.id, { maxRpm, machiningMode: mode }).subscribe({
       next: (res) => {
         this.latheCycleTime.set(res);
+        if (res.machiningMode) {
+          this.machiningMode.set(res.machiningMode);
+        }
         this.isCalculatingLatheCt.set(false);
         this.latheSuccessMessage.set(`【${res.machineName} (${res.calculationEngineType || 'AUTOMATIC_LATHE'})】サイクルタイムの計算が完了しました（上限回転数: ${maxRpm || 'マスタ値'} rpm）。`);
         this.loadLatheOperations(q.id);
@@ -1478,5 +2043,206 @@ export class QuoteDetailComponent implements OnInit {
         alert(err?.error?.error?.message || 'ステータスの更新に失敗しました。');
       },
     });
+  }
+
+  // 加工部位種別の日本語ラベル変換
+  getFeatureTypeLabel(type: string): string {
+    const map: Record<string, string> = {
+      OD: '外径 (OD)',
+      ID: '内径 (ID)',
+      DRILL: '穴あけ (DRILL)',
+      BORE: '内径ボーリング (BORE)',
+      THREAD: 'ねじ切り (THREAD)',
+      GROOVE: '溝入れ (GROOVE)',
+      CHAMFER: '面取り (CHAMFER)',
+      CUTOFF: '突切り (CUTOFF)',
+      UNKNOWN: 'その他・不明',
+    };
+    return map[type] || type;
+  }
+
+  // 加工工程種別の日本語ラベル変換
+  getOperationTypeLabel(type: string): string {
+    const map: Record<string, string> = {
+      TURNING: '旋削 (TURNING)',
+      DRILLING: '穴あけ (DRILLING)',
+      THREADING: 'ねじ切り (THREADING)',
+      GROOVING: '溝入れ (GROOVING)',
+      CHAMFERING: '面取り (CHAMFERING)',
+      CUTOFF: '突切り (CUTOFF)',
+      MILLING: 'ミーリング (MILLING)',
+    };
+    return map[type] || type;
+  }
+
+  // ==============================================================
+  // STEP 2: 実図面バルーン表示ビューア 制御メソッド
+  // ==============================================================
+  selectOperation(index: number): void {
+    const ops = this.operations();
+    if (index >= 0 && index < ops.length) {
+      this.selectedOperationIndex.set(index);
+    }
+  }
+
+  selectFeature(index: number): void {
+    const feats = this.features();
+    if (index >= 0 && index < feats.length) {
+      this.selectedFeatureIndex.set(index);
+    }
+  }
+
+  selectBalloonPin(pin: { id: string; index: number }): void {
+    if (this.reviewSubTab() === 'operations') {
+      this.selectOperation(pin.index);
+    } else {
+      this.selectFeature(pin.index);
+    }
+  }
+
+  setHoveredBalloon(id: string | null): void {
+    this.hoveredBalloonId.set(id);
+  }
+
+  zoomInBalloon(): void {
+    const cur = this.balloonZoom();
+    if (cur < 2.5) this.balloonZoom.set(Math.round((cur + 0.25) * 100) / 100);
+  }
+
+  zoomOutBalloon(): void {
+    const cur = this.balloonZoom();
+    if (cur > 0.5) this.balloonZoom.set(Math.round((cur - 0.25) * 100) / 100);
+  }
+
+  resetZoomBalloon(): void {
+    this.balloonZoom.set(1.0);
+    this.panOffsetX.set(0);
+    this.panOffsetY.set(0);
+  }
+
+  toggleDrawingFullscreen(): void {
+    this.isDrawingFullscreen.set(!this.isDrawingFullscreen());
+  }
+
+  // ピンのドラッグ移動（手動微調整）
+  private draggingPinId: string | null = null;
+
+  onPinMouseDown(event: MouseEvent, pinId: string): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.draggingPinId = pinId;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!this.draggingPinId) return;
+      const container = document.querySelector('.drawing-canvas-inner') as HTMLElement;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const xPercent = Math.max(2, Math.min(98, Math.round(((moveEvent.clientX - rect.left) / rect.width) * 1000) / 10));
+      const yPercent = Math.max(2, Math.min(98, Math.round(((moveEvent.clientY - rect.top) / rect.height) * 1000) / 10));
+
+      const updated = { ...this.customPinPositions() };
+      updated[this.draggingPinId] = { x: xPercent, y: yPercent };
+      this.customPinPositions.set(updated);
+    };
+
+    const onMouseUp = () => {
+      this.draggingPinId = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  // 初心者・営業向けやさしい解説の生成
+  getOperationGuide(op: Operation, feat?: Feature | null): {
+    title: string;
+    toolName: string;
+    easyExplanation: string;
+    salesNote: string;
+    dimensionText: string;
+  } {
+    const type = (op.operationType || '').toUpperCase();
+    const desc = op.description || '';
+    const side = op.machiningSide || 'FRONT';
+
+    let title = '加工工程';
+    let toolName = '旋盤バイト 🔪';
+    let easyExplanation = '金属素材を回転させながら刃物を当てて削る基本加工です。';
+    let salesNote = '標準的な切削加工時間が見込まれます。';
+
+    if (side === 'CUTOFF' || type === 'CUTOFF' || desc.includes('突切り')) {
+      title = '完成品の切り落とし (突切り)';
+      toolName = '突切りバイト (切断刃) ✂️';
+      easyExplanation = '正面側の削り出しがすべて完了したため、長尺の材料棒から完成品を切り落とし、サブ主軸（背面）へ受け渡します。';
+      salesNote = '中心軸まで完全に切り落とすため、素材の直径が大きいほど切断時間が長くなります。';
+    } else if (side === 'BACK' || type.includes('BACK') || desc.includes('背面')) {
+      if (desc.includes('面取り') || type === 'CHAMFERING') {
+        title = '裏側の角丸め・バリ取り (背面面取り)';
+        toolName = '背面面取りバイト 📐';
+        easyExplanation = '切り落とした裏面側の鋭い角（エッジ）を斜めに削り落とし、怪我防止と安全性を確保します。';
+        salesNote = '同時加工により、正面加工の裏側で並行して実行されるため実質サイクルタイムは加算されません。';
+      } else {
+        title = '裏側の端面仕上げ (背面端面加工)';
+        toolName = '背面端面バイト 🔪';
+        easyExplanation = '切り落とした切断面を薄く削って平らに整え、製品の全長寸法を精密に仕上げます。';
+        salesNote = '第2主軸（サブスピンドル）で正面加工と同時に削るため、高効率に加工できます。';
+      }
+    } else if (type === 'TURNING' || type === 'OD' || desc.includes('外径')) {
+      title = '丸棒の外側を削って細くする (外径旋削)';
+      toolName = '外径旋削バイト (荒/仕上げ) 🔪';
+      easyExplanation = '高速回転する金属丸棒の外側に刃物を当て、軸方向に動かしながら指定の太さ（外径）まで削り落とします。';
+      salesNote = '素材径と製品寸法の差（削り落とす肉厚）が大きいほど、刃物を何度も往復させて削るため時間が長くなります。';
+    } else if (type === 'DRILLING' || type === 'DRILL' || desc.includes('穴') || desc.includes('ドリル')) {
+      title = '中心に穴をあける (ドリル加工)';
+      toolName = '超硬ドリル 🔩';
+      easyExplanation = '丸棒の中心（回転軸）にドリルを突き刺して、製品の内部に指定の深さまで穴をあけます。';
+      salesNote = '深い穴ほど切りくずが排出されにくくなるため、ドリルを小刻みに出し入れしながら時間をかけて削ります。';
+    } else if (type === 'BORE' || desc.includes('ボーリング') || desc.includes('内径')) {
+      title = '穴の内側を広げて滑らかにする (内径加工)';
+      toolName = 'ボーリングバー (内径用バイト) 🪚';
+      easyExplanation = 'ドリルであけた穴の中に細い棒状の刃物を挿入し、穴の内壁を削り広げて高精度な寸法に仕上げます。';
+      salesNote = '内径バイトは細長いためビビり（振動）が出やすく、回転速度を抑えて慎重に削る必要があります。';
+    } else if (type === 'THREADING' || type === 'THREAD' || desc.includes('ねじ')) {
+      title = 'らせん状のねじ山を刻む (ねじ切り加工)';
+      toolName = 'ねじ切りバイト 🔩';
+      easyExplanation = 'ボルトやおねじ・めねじのように、製品の表面に正確なピッチでらせん状のねじ山を削り出します。';
+      salesNote = 'ねじ山は刃物を4〜8回往復させて少しずつ彫り込むため、専用の加工時間を要します。';
+    } else if (type === 'GROOVING' || type === 'GROOVE' || desc.includes('溝')) {
+      title = '帯状の溝を掘る (溝入れ加工)';
+      toolName = '溝入れバイト 🪛';
+      easyExplanation = 'Oリング（シール材）や止め輪をはめ込むための凹んだ溝を、細い刃物を突き当てて彫り込みます。';
+      salesNote = '刃先が細く切削熱がこもりやすいため、ゆっくりとした送り速度で慎重に加工します。';
+    } else if (type === 'CHAMFERING' || type === 'CHAMFER' || desc.includes('面取り')) {
+      title = '角を斜めに削ってバリを取る (面取り加工)';
+      toolName = '面取りバイト 📐';
+      easyExplanation = '加工後の鋭利な角（エッジ）を斜め45度に削り落とし、滑らかで安全な形状に仕上げます。';
+      salesNote = '数秒程度で完了する基本的な仕上げ工程です。';
+    }
+
+    let dimText = '';
+    if (feat) {
+      const d = feat.diameter !== null ? `φ${feat.diameter}mm` : '';
+      const l = feat.length !== null ? `L${feat.length}mm` : '';
+      const dep = feat.depth !== null ? `深さ${feat.depth}mm` : '';
+      dimText = [d, l, dep].filter(Boolean).join(' × ');
+    }
+    if (!dimText && op.cuttingLength) {
+      dimText = `長/深: ${op.cuttingLength}mm`;
+    }
+
+    return {
+      title,
+      toolName,
+      easyExplanation,
+      salesNote,
+      dimensionText: dimText || '-',
+    };
+  }
+
+  ngOnDestroy(): void {
+    // リソース解放
   }
 }

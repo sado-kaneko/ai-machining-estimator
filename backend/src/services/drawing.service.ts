@@ -152,6 +152,45 @@ export class DrawingService {
 
     return true;
   }
+
+  /**
+   * 図面の第1ページをPNG画像として取得（オンデマンド変換・キャッシュ）
+   */
+  async getDrawingImage(drawingId: number): Promise<{ buffer: Buffer; mimeType: string }> {
+    const drawing = await drawingRepository.findById(drawingId);
+    if (!drawing) {
+      throw new Error('DRAWING_NOT_FOUND');
+    }
+
+    if (!fs.existsSync(drawing.file_path)) {
+      throw new Error('PDF_FILE_NOT_FOUND');
+    }
+
+    // キャッシュ画像ファイルパス (.png)
+    const pngPath = `${drawing.file_path}.page1.png`;
+    if (fs.existsSync(pngPath)) {
+      const buffer = await fs.promises.readFile(pngPath);
+      return { buffer, mimeType: 'image/png' };
+    }
+
+    // pdf-to-img で1ページ目をPNG化
+    const { pdf } = await import('pdf-to-img');
+    const document = await pdf(drawing.file_path, { scale: 2.0, format: 'png' });
+    let firstPageBuffer: Buffer | null = null;
+    for await (const pageBuffer of document) {
+      firstPageBuffer = pageBuffer;
+      break; // 1ページ目のみ取得
+    }
+
+    if (!firstPageBuffer) {
+      throw new Error('NO_PAGES_FOUND');
+    }
+
+    // キャッシュ保存
+    await fs.promises.writeFile(pngPath, firstPageBuffer).catch(() => {});
+
+    return { buffer: firstPageBuffer, mimeType: 'image/png' };
+  }
 }
 
 export const drawingService = new DrawingService();

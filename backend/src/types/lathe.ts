@@ -7,6 +7,11 @@ export interface MachineMasterRow {
   maker: string | null;
   model: string | null;
   max_rpm: number;
+  max_bar_diameter?: number | null;
+  max_machining_length?: number | null;
+  has_sub_spindle?: number | boolean | null;
+  max_tools?: number | null;
+  special_options?: string | null;
   created_at: Date;
   updated_at: Date | null;
 }
@@ -19,6 +24,11 @@ export interface MachineDto {
   maker: string | null;
   model: string | null;
   maxRpm: number;
+  maxBarDiameter?: number | null;
+  maxMachiningLength?: number | null;
+  hasSubSpindle?: boolean | null;
+  maxTools?: number | null;
+  specialOptions?: string | null;
 }
 
 export interface QuoteMachineSelectionRow {
@@ -35,6 +45,7 @@ export interface QuoteMachineSelectionRow {
 export interface LatheProcessMasterRow {
   id: number;
   process_category: string;
+  machining_side: 'FRONT' | 'CUTOFF' | 'BACK';
   process_name: string;
   calculation_type: string;
   default_time_sec: number;
@@ -76,6 +87,7 @@ export interface AutomaticLatheOperationRow {
   feature_id: number | null;
   sequence_no: number;
   process_id: number;
+  machining_side: 'FRONT' | 'CUTOFF' | 'BACK';
   machining_length: number;
   diameter: number;
   depth: number;
@@ -96,6 +108,7 @@ export interface CreateLatheOperationInput {
   featureId: number | null;
   sequenceNo: number;
   processId: number;
+  machiningSide?: 'FRONT' | 'CUTOFF' | 'BACK';
   machiningLength: number;
   diameter: number;
   depth: number;
@@ -112,6 +125,7 @@ export interface CreateLatheOperationInput {
 export interface UpdateLatheOperationInput {
   sequenceNo?: number;
   processId?: number;
+  machiningSide?: 'FRONT' | 'CUTOFF' | 'BACK';
   machiningLength?: number;
   diameter?: number;
   depth?: number;
@@ -128,6 +142,7 @@ export interface AutomaticLatheOperationDto {
   featureId: number | null;
   sequenceNo: number;
   processId: number;
+  machiningSide: 'FRONT' | 'CUTOFF' | 'BACK';
   processName: string;
   processCategory: string;
   machiningLength: number;
@@ -163,6 +178,16 @@ export interface LatheCycleTimeSummaryDto {
   correctionApplied?: boolean;
   confidenceLevel?: string;
   correctionReason?: string;
+  // PHASE19: 正面・背面・同時加工情報
+  machiningMode?: 'SIMULTANEOUS' | 'SEQUENTIAL';
+  frontCuttingTimeSec?: number;
+  backCuttingTimeSec?: number;
+  cutoffCuttingTimeSec?: number;
+  frontTotalTimeSec?: number;
+  backTotalTimeSec?: number;
+  cutoffTotalTimeSec?: number;
+  dominantSide?: 'FRONT' | 'BACK';
+  savedTimeSec?: number;
   operations: AutomaticLatheOperationDto[];
 }
 
@@ -178,6 +203,7 @@ export function toAutomaticLatheOperationDto(
     featureId: row.feature_id !== null ? Number(row.feature_id) : null,
     sequenceNo: Number(row.sequence_no),
     processId: Number(row.process_id),
+    machiningSide: (row.machining_side as 'FRONT' | 'CUTOFF' | 'BACK') || 'FRONT',
     processName,
     processCategory,
     machiningLength: Number(row.machining_length),

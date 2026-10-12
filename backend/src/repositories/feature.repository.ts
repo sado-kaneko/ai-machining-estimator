@@ -151,6 +151,18 @@ export class FeatureRepository {
   }
 
   /**
+   * ID で Feature を1件削除
+   */
+  async deleteById(id: number): Promise<boolean> {
+    const [result] = await pool.query<ResultSetHeader>(
+      `DELETE FROM features WHERE id = ?`,
+      [id]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  /**
    * 全件数を取得（テスト・検証用）
    */
   async count(): Promise<number> {

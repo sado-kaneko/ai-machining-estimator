@@ -184,6 +184,23 @@ export class FeatureService {
 
     return toFeatureDto(updated);
   }
+
+  /**
+   * Feature の削除
+   */
+  async deleteFeature(id: number): Promise<void> {
+    // 1. 存在確認
+    const existing = await featureRepository.findById(id);
+    if (!existing) {
+      throw new Error('FEATURE_NOT_FOUND');
+    }
+
+    // 2. 削除実行
+    const success = await featureRepository.deleteById(id);
+    if (!success) {
+      throw new Error('FEATURE_DELETE_FAILED');
+    }
+  }
 }
 
 export const featureService = new FeatureService();

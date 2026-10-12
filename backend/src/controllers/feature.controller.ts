@@ -150,6 +150,52 @@ export class FeatureController {
       });
     }
   }
+
+  /**
+   * DELETE /api/features/:id
+   * Feature の削除
+   */
+  async deleteFeature(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const featureId = parseInt(rawId, 10);
+
+      if (isNaN(featureId) || featureId <= 0) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_ID',
+            message: '有効なFeature IDを指定してください。',
+          },
+        });
+        return;
+      }
+
+      await featureService.deleteFeature(featureId);
+      res.status(200).json({
+        success: true,
+        message: '加工Featureを削除しました。',
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+
+      if (message === 'FEATURE_NOT_FOUND') {
+        res.status(404).json({
+          error: {
+            code: 'FEATURE_NOT_FOUND',
+            message: '指定された加工Featureが存在しません。',
+          },
+        });
+        return;
+      }
+
+      res.status(500).json({
+        error: {
+          code: 'FEATURE_DELETE_FAILED',
+          message: '加工Featureの削除に失敗しました。',
+        },
+      });
+    }
+  }
 }
 
 export const featureController = new FeatureController();

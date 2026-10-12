@@ -99,7 +99,11 @@ export class LatheController {
       }
 
       const maxRpm = req.body?.maxRpm ? Number(req.body.maxRpm) : undefined;
-      const result = await latheService.calculateLatheCycleTime(quoteId, { maxRpm });
+      const machiningMode = req.body?.machiningMode === 'SEQUENTIAL'
+        ? 'SEQUENTIAL'
+        : (req.body?.machiningMode === 'SIMULTANEOUS' ? 'SIMULTANEOUS' : undefined);
+
+      const result = await latheService.calculateLatheCycleTime(quoteId, { maxRpm, machiningMode });
       res.status(200).json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
@@ -127,6 +131,33 @@ export class LatheController {
 
       res.status(500).json({
         error: { code: 'CALCULATION_FAILED', message: '自動旋盤サイクルタイムの計算に失敗しました。' },
+      });
+    }
+  }
+
+  /**
+   * PUT /api/quotes/:id/lathe-machining-mode
+   * 同時加工 / 順次加工 モード更新 & 再計算
+   */
+  async updateMachiningMode(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const quoteId = parseInt(rawId, 10);
+      const mode = req.body?.mode === 'SEQUENTIAL' ? 'SEQUENTIAL' : 'SIMULTANEOUS';
+
+      if (isNaN(quoteId) || quoteId <= 0) {
+        res.status(400).json({
+          error: { code: 'INVALID_ID', message: '有効な見積IDを指定してください。' },
+        });
+        return;
+      }
+
+      const maxRpm = req.body?.maxRpm ? Number(req.body.maxRpm) : undefined;
+      const result = await latheService.calculateLatheCycleTime(quoteId, { maxRpm, machiningMode: mode });
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      res.status(500).json({
+        error: { code: 'UPDATE_MODE_FAILED', message: '加工モードの更新に失敗しました。' },
       });
     }
   }
@@ -227,6 +258,43 @@ export class LatheController {
 
       res.status(500).json({
         error: { code: 'REGENERATE_FAILED', message: '自動旋盤工程の再生成に失敗しました。' },
+      });
+    }
+  }
+
+  /**
+   * PUT /api/quotes/:id/lathe-operations/:opId
+   * 単一工程の切削条件（回転数・送り）の個別変更
+   */
+  async updateOperationCondition(req: Request, res: Response): Promise<void> {
+    try {
+      const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const quoteId = parseInt(rawId, 10);
+      const rawOpId = Array.isArray(req.params.opId) ? req.params.opId[0] : req.params.opId;
+      const opId = parseInt(rawOpId, 10);
+
+      if (isNaN(quoteId) || quoteId <= 0 || isNaN(opId) || opId <= 0) {
+        res.status(400).json({
+          error: { code: 'INVALID_ID', message: '有効な見積IDおよび工程IDを指定してください。' },
+        });
+        return;
+      }
+
+      const { feed, rpm, vc } = req.body;
+      const result = await latheService.updateOperationCondition(quoteId, opId, { feed, rpm, vc });
+      res.status(200).json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+
+      if (message === 'OPERATION_NOT_FOUND') {
+        res.status(404).json({
+          error: { code: 'OPERATION_NOT_FOUND', message: '指定された自動旋盤工程が存在しません。' },
+        });
+        return;
+      }
+
+      res.status(500).json({
+        error: { code: 'UPDATE_CONDITION_FAILED', message: '工程切削条件の更新に失敗しました。' },
       });
     }
   }
